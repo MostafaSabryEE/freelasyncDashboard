@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FREELASYNC | Mostafa Sabry</title>
+    <style>
+        :root {
+            --primary: #121417;
+            --secondary: #1e2228;
+            --accent: #2196f3;
+            --accent-hover: #1976d2;
+            --text-main: #e1e3e6;
+            --text-muted: #8b929a;
+            --border: #2d333b;
+            --success: #00e676;
+            --warning: #ff9800;
+            --logo-blue: #2196f3;
+            --logo-orange: #ff9800;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--primary); color: var(--text-main); font-size: 14px; display: flex; flex-direction: column; min-height: 100vh; padding: 20px; }
+
+        button { cursor: pointer; border: none; border-radius: 4px; padding: 6px 12px; font-weight: 500; transition: background 0.2s, color 0.2s, opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+
+        header { display: flex; align-items: center; justify-content: space-between; padding: 0 0 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; gap: 20px;}
+
+        .brand-container { display: flex; align-items: center; gap: 16px; min-width: 0;}
+        .brand-logo-svg { width: 56px; height: 56px; flex-shrink: 0; }
+        .app-title-group { display: flex; flex-direction: column;}
+        .app-name { font-size: 1.4rem; font-weight: 800; color: #ffffff; text-transform: uppercase; letter-spacing: 1.5px; }
+        .creator-tag { font-size: 0.85rem; color: #64b5f6; font-weight: 500; margin-top: -2px; }
+
+        .global-actions { display: flex; gap: 10px; flex-shrink: 0;}
+        .btn-header { background: var(--secondary); color: var(--text-main); border: 1px solid var(--border); }
+        .btn-header:hover { background: var(--accent); color: white; border-color: transparent;}
+        .btn-primary { background-color: var(--accent); color: white; }
+        .btn-primary:hover { background-color: var(--accent-hover); }
+        .btn-secondary { background-color: var(--border); color: white; }
+        .btn-danger { background: rgba(250, 82, 82, 0.1); color: #fa5252; border: 1px solid rgba(250, 82, 82, 0.2);}
+        .btn-danger:hover { background: #fa5252; color: white; }
+        .btn-sm { padding: 3px 8px; font-size: 0.75rem; }
+
+        main { flex-grow: 1; display: grid; grid-template-columns: minmax(320px, 380px) 1fr; gap: 20px; }
+        @media (max-width: 992px) { main { grid-template-columns: 1fr; } }
+
+        .form-section, .dashboard-section { display: flex; flex-direction: column; gap: 20px; }
+
+        .panel { background-color: var(--secondary); border: 1px solid var(--border); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; width: 100%; box-sizing: border-box;}
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); font-size: 0.95rem; font-weight: 600; color: #fff; }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; width: 100%; min-width: 0; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+        label { color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        input, select, textarea { background-color: rgba(0, 0, 0, 0.2); border: 1px solid var(--border); color: #f8f9fa; border-radius: 4px; padding: 8px 10px; font-size: 0.85rem; width: 100%; box-sizing: border-box; }
+        input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: transparent;}
+
+        .summary-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;}
+        @media (max-width: 600px) { .summary-stats { grid-template-columns: 1fr 1fr;} }
+        .stat-card { background: rgba(0, 0, 0, 0.15); border: 1px solid var(--border); border-radius: 4px; padding: 12px; display: flex; flex-direction: column; gap: 4px;}
+        .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; color: #fff; }
+        .stat-value.currency { color: var(--success); }
+
+        .project-list { display: flex; flex-direction: column; gap: 10px; margin-top: 5px;}
+        .empty-state { text-align: center; color: var(--text-muted); padding: 30px 0; border: 2px dashed var(--border); border-radius: 6px;}
+
+        /* CLICKABLE PORTFOLIO ROW CARD */
+        .proj-row-card { border-radius: 6px; border: 1px solid var(--border); background-color: rgba(0, 0, 0, 0.15); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s ease; gap: 15px;}
+        .proj-row-card:hover { background-color: rgba(33, 150, 243, 0.08); border-color: var(--accent); transform: translateX(2px); }
+        .proj-row-card.type-hourly { border-left: 4px solid var(--logo-blue); }
+        .proj-row-card.type-fixed { border-left: 4px solid var(--logo-orange); }
+        .proj-row-card.type-retainer { border-left: 4px solid #ab47bc; }
+        .proj-row-card.type-value { border-left: 4px solid var(--success); }
+
+        .proj-info-group { display: flex; flex-direction: column; gap: 4px; flex-grow: 1; min-width: 0; }
+        .proj-row-title { font-size: 1.05rem; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .proj-row-sub { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 12px; }
+
+        .proj-row-meta { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+        /* DETAIL VIEW STYLING */
+        .detail-view-container { display: flex; flex-direction: column; gap: 20px; }
+        .detail-top-nav { display: flex; justify-content: space-between; align-items: center; }
+
+        /* STATUS BADGES */
+        .badge { font-size: 0.65rem; padding: 3px 8px; border-radius: 3px; text-transform: uppercase; font-weight: 700; display: inline-block; white-space: nowrap; }
+        .st-not-started { background: rgba(139, 146, 154, 0.2); color: #8b929a; }
+        .st-in-progress { background: rgba(33, 150, 243, 0.2); color: #2196f3; }
+        .st-blocked { background: rgba(250, 82, 82, 0.2); color: #fa5252; }
+        .st-cancelled { background: rgba(108, 117, 125, 0.2); color: #6c757d; }
+        .st-reviewing { background: rgba(255, 152, 0, 0.2); color: #ff9800; }
+        .st-delivered, .st-done { background: rgba(0, 230, 118, 0.2); color: #00e676; }
+        .st-on-hold { background: rgba(238, 90, 36, 0.2); color: #ee5a24; }
+
+        .task-list { display: flex; flex-direction: column; gap: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: 4px; padding: 12px; }
+        .task-list-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; color: var(--text-muted); border-bottom: 1px solid var(--border); padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center;}
+        
+        .task-item { background: var(--secondary); border: 1px solid var(--border); border-radius: 4px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .task-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;}
+        .task-title { font-weight: 600; color: #fff; font-size: 0.9rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .task-ctrls { display: flex; gap: 6px; }
+
+        .log-entries { display: flex; flex-direction: column; gap: 6px; padding-left: 10px; border-left: 2px solid var(--border); margin-top: 4px; }
+        .log-row { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.15); padding: 6px 8px; border-radius: 3px; font-size: 0.85rem; flex-wrap: wrap; gap: 6px; }
+        .log-time { color: var(--text-muted); font-size: 0.75rem; }
+
+        .proj-metrics { display: flex; justify-content: space-around; background: rgba(0,0,0,0.2); border-radius: 4px; padding: 12px; border: 1px solid var(--border);}
+        .metric { text-align: center; }
+        .metric-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+        .metric-value { font-size: 1rem; font-weight: 600; }
+
+        /* MODAL */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.7); display: flex; justify-content: center; align-items: center; z-index: 2000; visibility: hidden; opacity: 0; transition: all 0.2s; }
+        .modal-overlay.active { visibility: visible; opacity: 1; }
+        .modal { background: var(--secondary); border: 1px solid var(--border); border-radius: 6px; width: 450px; max-width: 90vw; padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .modal-title { font-size: 1.1rem; font-weight: 700; color: #fff; }
+
+        #notification_pane { position: fixed; bottom: 20px; right: 20px; max-width: 300px; display: flex; flex-direction: column; gap: 10px; z-index: 3000; }
+        .notify-toast { background: var(--secondary); color: white; padding: 10px 15px; border-radius: 4px; border: 1px solid var(--border); box-shadow: 0 4px 6px rgba(0,0,0,0.3); animation: slideIn 0.3s, fadeOut 0.3s 2.7s; border-left: 4px solid;}
+        .notify-toast.error { border-left-color: #fa5252;}
+        .notify-toast.success { border-left-color: var(--accent);}
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="brand-container">
+        <svg class="brand-logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="46" fill="#252930"/>
+            <path d="M 23 50 C 35 27, 65 27, 77 50" stroke="#2196F3" stroke-width="7" stroke-linecap="round" fill="none"/>
+            <path d="M 23 50 L 15 45 L 15 55 Z" fill="#2196F3"/>
+            <path d="M 23 50 C 35 73, 65 73, 77 50" stroke="#FF9800" stroke-width="7" stroke-linecap="round" fill="none"/>
+            <path d="M 77 50 L 85 45 L 85 55 Z" fill="#FF9800"/>
+        </svg>
+        <div class="app-title-group">
+            <div class="app-name">FREELASYNC</div>
+            <div class="creator-tag">By Mostafa Sabry</div>
+        </div>
+    </div>
+    <div class="global-actions">
+        <button class="btn-header" onclick="App.state.exportData()">Export Database</button>
+        <button class="btn-header" onclick="document.getElementById('importFile').click()">Import</button>
+        <button class="btn-danger" onclick="App.state.resetDatabase()">Reset All</button>
+        <input type="file" id="importFile" style="display:none" onchange="App.state.importData(event)">
+    </div>
+</header>
+
+<main>
+    <div class="form-section">
+        <div class="panel">
+            <div class="panel-header">Create New Project</div>
+            <form id="projectForm" onsubmit="App.handlers.createProject(event)">
+                <div class="form-group">
+                    <label for="pName">Project Name</label>
+                    <input type="text" id="pName" placeholder="e.g. Wireless Clip Test" required maxlength="100">
+                </div>
+                <div class="form-group">
+                    <label for="pClient">Client Name</label>
+                    <input type="text" id="pClient" placeholder="e.g. Global Tech Solutions" required maxlength="100">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="pType">Type</label>
+                        <select id="pType" required>
+                            <option value="Hourly">Hourly</option>
+                            <option value="Fixed fee">Fixed fee</option>
+                            <option value="Retainer">Retainer</option>
+                            <option value="Value-based">Value-based</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pStatus">Initial Status</label>
+                        <select id="pStatus" required>
+                            <option value="Not Started">Not Started</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Blocked">Blocked</option>
+                            <option value="Cancelled">Cancelled</option>
+                            <option value="Reviewing">Reviewing</option>
+                            <option value="Delivered">Delivered</option>
+                            <option value="On Hold">On Hold</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="pRate">Hourly Rate ($)</label>
+                    <input type="number" id="pRate" min="0" step="1" value="40" required>
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; margin-top: 5px;">Register Project</button>
+            </form>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">Add Planned Task</div>
+            <form id="taskForm" onsubmit="App.handlers.createTask(event)">
+                <div class="form-group">
+                    <label for="tProjectSelect">Select Project</label>
+                    <select id="tProjectSelect" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="tTitle">Task Title / Scope</label>
+                    <input type="text" id="tTitle" placeholder="e.g. Execute Regression Suite" required maxlength="150">
+                </div>
+                <div class="form-group">
+                    <label for="tStatus">Task Status</label>
+                    <select id="tStatus" required>
+                        <option value="Not Started">Not Started</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Blocked">Blocked</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Done">Done</option>
+                        <option value="On Hold">On Hold</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; margin-top: 5px;">Add Task Plan</button>
+            </form>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">Log Time to Task</div>
+            <form id="logForm" onsubmit="App.handlers.logTime(event)">
+                <div class="form-group">
+                    <label for="lProjectSelect">1. Select Project</label>
+                    <select id="lProjectSelect" onchange="App.state.handleLogProjectFilterChange(this.value)" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="lTaskSelect">2. Select Planned Task</label>
+                    <select id="lTaskSelect" required></select>
+                </div>
+                <div class="form-group">
+                    <label for="lStart">Start Time</label>
+                    <input type="datetime-local" id="lStart" required>
+                </div>
+                <div class="form-group">
+                    <label for="lEnd">End Time</label>
+                    <input type="datetime-local" id="lEnd" required>
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; margin-top: 5px;">Commit Log Entry</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="dashboard-section">
+        <div class="summary-stats" id="dashboard_summary"></div>
+
+        <div class="panel" id="main_content_panel">
+            </div>
+    </div>
+</main>
+
+<div class="modal-overlay" id="editModal">
+    <div class="modal">
+        <div class="modal-title" id="modalTitle">Edit Item</div>
+        <div id="modalBody"></div>
+        <div style="display:flex; justify-content: flex-end; gap: 8px;">
+            <button class="btn-secondary" onclick="App.ui.closeModal()">Cancel</button>
+            <button class="btn-primary" id="modalSaveBtn">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<div id="notification_pane"></div>
+
+<script>
+"use strict";
+
+const App = (() => {
+    const DB_KEY = "freelasync_msry_db_v7";
+
+    let _db = {
+        config: { creator: "Mostafa Sabry", app: "FREELASYNC" },
+        metadata: { createdCount: 0, taskCount: 0, logCount: 0 },
+        projects: []
+    };
+
+    let _activeProjectId = null; // Navigation State: null = Portfolio View, String = Detail View
+
+    const PROJECT_TYPES = ["Hourly", "Fixed fee", "Retainer", "Value-based"];
+    const PROJECT_STATUSES = ["Not Started", "In Progress", "Blocked", "Cancelled", "Reviewing", "Delivered", "On Hold"];
+    const TASK_STATUSES = ["Not Started", "In Progress", "Blocked", "Cancelled", "Done", "On Hold"];
+
+    const ui = {
+        dom: {
+            projectForm: document.getElementById('projectForm'),
+            taskForm: document.getElementById('taskForm'),
+            logForm: document.getElementById('logForm'),
+            tProjectSelect: document.getElementById('tProjectSelect'),
+            lProjectSelect: document.getElementById('lProjectSelect'),
+            lTaskSelect: document.getElementById('lTaskSelect'),
+            summary: document.getElementById('dashboard_summary'),
+            mainContentPanel: document.getElementById('main_content_panel'),
+            notifyPane: document.getElementById('notification_pane'),
+            editModal: document.getElementById('editModal'),
+            modalTitle: document.getElementById('modalTitle'),
+            modalBody: document.getElementById('modalBody'),
+            modalSaveBtn: document.getElementById('modalSaveBtn')
+        },
+
+        showNotify: (message, type = 'success') => {
+            const toast = document.createElement('div');
+            toast.className = `notify-toast ${type}`;
+            toast.innerText = message;
+            ui.dom.notifyPane.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        },
+
+        openModal: (title, bodyHtml, onSave) => {
+            ui.dom.modalTitle.innerText = title;
+            ui.dom.modalBody.innerHTML = bodyHtml;
+            ui.dom.modalSaveBtn.onclick = onSave;
+            ui.dom.editModal.classList.add('active');
+        },
+
+        closeModal: () => {
+            ui.dom.editModal.classList.remove('active');
+        },
+
+        getStatusClass: (statusStr) => {
+            const slug = (statusStr || 'not-started').toLowerCase().replace(/\s+/g, '-');
+            return `st-${slug}`;
+        },
+
+        getTypeClass: (typeStr) => {
+            switch(typeStr) {
+                case 'Fixed fee': return 'type-fixed';
+                case 'Retainer': return 'type-retainer';
+                case 'Value-based': return 'type-value';
+                case 'Hourly':
+                default: return 'type-hourly';
+            }
+        },
+
+        calcHours: (start, end) => {
+            const ms = new Date(end) - new Date(start);
+            return parseFloat((ms / (1000 * 60 * 60)).toFixed(2));
+        },
+
+        formatMoney: (amount) => {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+        },
+
+        validateLog: (start, end) => {
+            const startTime = new Date(start);
+            const endTime = new Date(end);
+            if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) return {ok: false, msg: "Invalid dates."};
+            if (endTime <= startTime) return {ok: false, msg: "End time must be after start time."};
+            return {ok: true};
+        }
+    };
+
+    const state = {
+        load: () => {
+            const raw = localStorage.getItem(DB_KEY);
+            if (!raw) return;
+            try {
+                _db = JSON.parse(raw);
+                state.syncDropdowns();
+                state.refreshDashboard();
+            } catch (e) {
+                ui.showNotify("Error loading stored data.", 'error');
+            }
+        },
+
+        save: () => {
+            localStorage.setItem(DB_KEY, JSON.stringify(_db));
+            state.refreshDashboard();
+        },
+
+        resetDatabase: () => {
+            if (!confirm("Delete all projects, tasks, and logs permanently?")) return;
+            localStorage.removeItem(DB_KEY);
+            location.reload();
+        },
+
+        openProjectDetails: (pid) => {
+            _activeProjectId = pid;
+            state.refreshDashboard();
+        },
+
+        closeProjectDetails: () => {
+            _activeProjectId = null;
+            state.refreshDashboard();
+        },
+
+        addProject: (pData) => {
+            const pid = `P-${String(++_db.metadata.createdCount).padStart(4, '0')}`;
+            _db.projects.push({ ...pData, id: pid, tasks: [] });
+            state.syncDropdowns(pid);
+            state.save();
+            ui.showNotify(`Project [${pData.name}] initialized.`);
+        },
+
+        editProject: (pid) => {
+            const p = _db.projects.find(x => x.id === pid);
+            if (!p) return;
+            const typeOptions = PROJECT_TYPES.map(t => `<option value="${t}" ${p.type === t ? 'selected' : ''}>${t}</option>`).join('');
+            const statusOptions = PROJECT_STATUSES.map(s => `<option value="${s}" ${p.status === s ? 'selected' : ''}>${s}</option>`).join('');
+
+            const html = `
+                <div class="form-group"><label>Project Name</label><input type="text" id="mPName" value="${p.name}"></div>
+                <div class="form-group"><label>Client Name</label><input type="text" id="mPClient" value="${p.client}"></div>
+                <div class="form-group"><label>Project Type</label><select id="mPType">${typeOptions}</select></div>
+                <div class="form-group"><label>Project Status</label><select id="mPStatus">${statusOptions}</select></div>
+                <div class="form-group"><label>Hourly Rate ($)</label><input type="number" id="mPRate" value="${p.rate}"></div>
+            `;
+            ui.openModal("Edit Project", html, () => {
+                p.name = document.getElementById('mPName').value.trim() || p.name;
+                p.client = document.getElementById('mPClient').value.trim() || p.client;
+                p.type = document.getElementById('mPType').value;
+                p.status = document.getElementById('mPStatus').value;
+                p.rate = parseFloat(document.getElementById('mPRate').value) || p.rate;
+                ui.closeModal();
+                state.save();
+                ui.showNotify("Project updated.");
+            });
+        },
+
+        deleteProject: (pid) => {
+            if (!confirm(`Remove project [${pid}] and all attached tasks/logs?`)) return;
+            _db.projects = _db.projects.filter(p => p.id !== pid);
+            if (_activeProjectId === pid) _activeProjectId = null;
+            state.syncDropdowns();
+            state.save();
+            ui.showNotify("Project deleted.");
+        },
+
+        addTask: (pid, title, status) => {
+            const project = _db.projects.find(p => p.id === pid);
+            if (!project) return;
+            const tid = `T-${String(++_db.metadata.taskCount).padStart(5, '0')}`;
+            project.tasks.push({ id: tid, title: title, status: status, logs: [] });
+            state.syncDropdowns(pid);
+            state.save();
+            ui.showNotify(`Task added to [${project.name}].`);
+        },
+
+        editTask: (pid, tid) => {
+            const project = _db.projects.find(p => p.id === pid);
+            const task = project ? project.tasks.find(t => t.id === tid) : null;
+            if (!task) return;
+
+            const statusOptions = TASK_STATUSES.map(s => `<option value="${s}" ${task.status === s ? 'selected' : ''}>${s}</option>`).join('');
+
+            const html = `
+                <div class="form-group"><label>Task Title</label><input type="text" id="mTTitle" value="${task.title}"></div>
+                <div class="form-group"><label>Task Status</label><select id="mTStatus">${statusOptions}</select></div>
+            `;
+            ui.openModal("Edit Task", html, () => {
+                task.title = document.getElementById('mTTitle').value.trim() || task.title;
+                task.status = document.getElementById('mTStatus').value;
+                ui.closeModal();
+                state.save();
+                ui.showNotify("Task updated.");
+            });
+        },
+
+        deleteTask: (pid, tid) => {
+            if (!confirm("Delete this planned task and all its logged time entries?")) return;
+            const project = _db.projects.find(p => p.id === pid);
+            if (!project) return;
+            project.tasks = project.tasks.filter(t => t.id !== tid);
+            state.syncDropdowns(pid);
+            state.save();
+            ui.showNotify("Task deleted.");
+        },
+
+        addLog: (tid, start, end) => {
+            let foundTask = null;
+
+            for (const p of _db.projects) {
+                const t = p.tasks.find(x => x.id === tid);
+                if (t) { foundTask = t; break; }
+            }
+
+            if (!foundTask) return;
+
+            const hours = ui.calcHours(start, end);
+            const lid = `L-${String(++_db.metadata.logCount).padStart(6, '0')}`;
+
+            foundTask.logs.push({ id: lid, start: start, end: end, hours: hours });
+            state.save();
+            ui.showNotify(`Logged ${hours} hrs to task.`);
+        },
+
+        editLog: (pid, tid, lid) => {
+            const project = _db.projects.find(p => p.id === pid);
+            const task = project ? project.tasks.find(t => t.id === tid) : null;
+            const log = task ? task.logs.find(l => l.id === lid) : null;
+            if (!log) return;
+
+            const html = `
+                <div class="form-group"><label>Start Time</label><input type="datetime-local" id="mLStart" value="${log.start}"></div>
+                <div class="form-group"><label>End Time</label><input type="datetime-local" id="mLEnd" value="${log.end}"></div>
+            `;
+            ui.openModal("Edit Log Time Frame", html, () => {
+                const start = document.getElementById('mLStart').value;
+                const end = document.getElementById('mLEnd').value;
+                const check = ui.validateLog(start, end);
+                if (!check.ok) { ui.showNotify(check.msg, 'error'); return; }
+
+                log.start = start;
+                log.end = end;
+                log.hours = ui.calcHours(start, end);
+                ui.closeModal();
+                state.save();
+                ui.showNotify("Log entry updated.");
+            });
+        },
+
+        deleteLog: (pid, tid, lid) => {
+            if (!confirm("Remove this logged time entry?")) return;
+            const project = _db.projects.find(p => p.id === pid);
+            const task = project ? project.tasks.find(t => t.id === tid) : null;
+            if (!task) return;
+
+            task.logs = task.logs.filter(l => l.id !== lid);
+            state.save();
+            ui.showNotify("Log entry removed.");
+        },
+
+        syncDropdowns: (preferredPid = null) => {
+            if (_db.projects.length === 0) {
+                ui.dom.tProjectSelect.innerHTML = '<option value="">(No Projects)</option>';
+                ui.dom.lProjectSelect.innerHTML = '<option value="">(No Projects)</option>';
+                ui.dom.lTaskSelect.innerHTML = '<option value="">(No Tasks)</option>';
+                return;
+            }
+
+            // Sync Add Task Project Selector
+            ui.dom.tProjectSelect.innerHTML = _db.projects.map(p => 
+                `<option value="${p.id}" ${p.id === preferredPid ? 'selected' : ''}>[${p.id}] ${p.name}</option>`
+            ).join('');
+
+            // Sync Log Time Project Selector
+            const currentSelectedLogPid = preferredPid || ui.dom.lProjectSelect.value || _db.projects[0].id;
+            ui.dom.lProjectSelect.innerHTML = _db.projects.map(p => 
+                `<option value="${p.id}" ${p.id === currentSelectedLogPid ? 'selected' : ''}>[${p.id}] ${p.name}</option>`
+            ).join('');
+
+            // Trigger Task dropdown filtering for Log Time based on selected project
+            state.handleLogProjectFilterChange(ui.dom.lProjectSelect.value);
+        },
+
+        handleLogProjectFilterChange: (pid) => {
+            const project = _db.projects.find(p => p.id === pid);
+            if (!project || project.tasks.length === 0) {
+                ui.dom.lTaskSelect.innerHTML = '<option value="">(No Tasks in this project)</option>';
+                return;
+            }
+
+            ui.dom.lTaskSelect.innerHTML = project.tasks.map(t => 
+                `<option value="${t.id}">[${t.status || 'Not Started'}] ${t.title}</option>`
+            ).join('');
+        },
+
+        refreshDashboard: () => {
+            state.renderSummary();
+            if (_activeProjectId) {
+                state.renderProjectDetailView(_activeProjectId);
+            } else {
+                state.renderPortfolioView();
+            }
+        },
+
+        renderSummary: () => {
+            let totalHours = 0;
+            let totalRevenue = 0;
+            let totalTasks = 0;
+
+            _db.projects.forEach(p => {
+                totalTasks += p.tasks.length;
+                p.tasks.forEach(t => {
+                    t.logs.forEach(l => {
+                        totalHours += l.hours;
+                        totalRevenue += (l.hours * p.rate);
+                    });
+                });
+            });
+
+            ui.dom.summary.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">Projects</div>
+                    <div class="stat-value">${_db.projects.length}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Tasks Planned</div>
+                    <div class="stat-value">${totalTasks}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Time Logged</div>
+                    <div class="stat-value">${totalHours.toFixed(2)} Hrs</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Gross Revenue</div>
+                    <div class="stat-value currency">${ui.formatMoney(totalRevenue)}</div>
+                </div>
+            `;
+        },
+
+        /* RENDER PORTFOLIO SUMMARY LIST (CLICKABLE ROWS) */
+        renderPortfolioView: () => {
+            if (_db.projects.length === 0) {
+                ui.dom.mainContentPanel.innerHTML = `
+                    <div class="panel-header">My Projects Portfolio</div>
+                    <div class="empty-state">No active projects in portfolio. Register a project on the left to begin.</div>
+                `;
+                return;
+            }
+
+            const rowsHtml = _db.projects.map(p => {
+                const typeName = p.type || 'Hourly';
+                const cardTypeClass = ui.getTypeClass(typeName);
+                const pStatus = p.status || 'Not Started';
+
+                let pTotalHours = 0;
+                p.tasks.forEach(t => t.logs.forEach(l => pTotalHours += l.hours));
+
+                return `
+                    <div class="proj-row-card ${cardTypeClass}" onclick="App.state.openProjectDetails('${p.id}')">
+                        <div class="proj-info-group">
+                            <div class="proj-row-title">${p.name}</div>
+                            <div class="proj-row-sub">
+                                <span>Client: <strong>${p.client}</strong></span>
+                                <span>•</span>
+                                <span>${typeName}</span>
+                                <span>•</span>
+                                <span>${p.tasks.length} Tasks</span>
+                                <span>•</span>
+                                <span>${pTotalHours.toFixed(2)} Hrs Logged</span>
+                            </div>
+                        </div>
+                        <div class="proj-row-meta">
+                            <span class="badge ${ui.getStatusClass(pStatus)}">${pStatus}</span>
+                            <span style="color: var(--text-muted); font-weight: bold;">&rsaquo;</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            ui.dom.mainContentPanel.innerHTML = `
+                <div class="panel-header">
+                    <span>My Projects Portfolio</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">Click a project row to view details & logs</span>
+                </div>
+                <div class="project-list">${rowsHtml}</div>
+            `;
+        },
+
+        /* RENDER SINGLE PROJECT DETAILS & LOGS PAGE */
+        renderProjectDetailView: (pid) => {
+            const p = _db.projects.find(x => x.id === pid);
+            if (!p) {
+                _activeProjectId = null;
+                state.renderPortfolioView();
+                return;
+            }
+
+            const typeName = p.type || 'Hourly';
+            const pStatus = p.status || 'Not Started';
+
+            let pTotalHours = 0;
+            p.tasks.forEach(t => t.logs.forEach(l => pTotalHours += l.hours));
+            const pTotalRevenue = pTotalHours * p.rate;
+
+            const tasksHtml = p.tasks.length === 0 
+                ? `<div style="color: var(--text-muted); font-size: 0.8rem; font-style: italic;">No tasks planned for this project yet. Use the left form to add planned tasks.</div>`
+                : p.tasks.map(t => {
+                    let tHours = 0;
+                    t.logs.forEach(l => tHours += l.hours);
+                    const tStatus = t.status || 'Not Started';
+
+                    const logsHtml = t.logs.length === 0
+                        ? `<div style="color: var(--text-muted); font-size: 0.75rem; font-style: italic;">No time logged yet.</div>`
+                        : t.logs.map(l => `
+                            <div class="log-row">
+                                <span>${l.hours} Hrs (${ui.formatMoney(l.hours * p.rate)})</span>
+                                <span class="log-time">${new Date(l.start).toLocaleString()} - ${new Date(l.end).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                                <div class="task-ctrls">
+                                    <button class="btn-secondary btn-sm" onclick="App.state.editLog('${p.id}', '${t.id}', '${l.id}')">Edit Log</button>
+                                    <button class="btn-danger btn-sm" onclick="App.state.deleteLog('${p.id}', '${t.id}', '${l.id}')">x</button>
+                                </div>
+                            </div>
+                        `).join('');
+
+                    return `
+                        <div class="task-item">
+                            <div class="task-header">
+                                <span class="task-title">
+                                    <span class="badge ${ui.getStatusClass(tStatus)}">${tStatus}</span>
+                                    ${t.title} 
+                                    <small style="color:var(--text-muted); font-weight:normal;">(${tHours.toFixed(2)} hrs)</small>
+                                </span>
+                                <div class="task-ctrls">
+                                    <button class="btn-secondary btn-sm" onclick="App.state.editTask('${p.id}', '${t.id}')">Edit Task</button>
+                                    <button class="btn-danger btn-sm" onclick="App.state.deleteTask('${p.id}', '${t.id}')">Delete Task</button>
+                                </div>
+                            </div>
+                            <div class="log-entries">${logsHtml}</div>
+                        </div>
+                    `;
+                }).join('');
+
+            ui.dom.mainContentPanel.innerHTML = `
+                <div class="detail-view-container">
+                    <div class="detail-top-nav">
+                        <button class="btn-header" onclick="App.state.closeProjectDetails()">&larr; Back to Portfolio</button>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn-secondary btn-sm" onclick="App.state.editProject('${p.id}')">Edit Project</button>
+                            <button class="btn-primary btn-sm" onclick="App.reports.generateHtmlReport('${p.id}')">Generate Report</button>
+                            <button class="btn-danger btn-sm" onclick="App.state.deleteProject('${p.id}')">Delete</button>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                        <div>
+                            <h2 style="color:#fff; font-size:1.4rem; font-weight:700;">${p.name}</h2>
+                            <div style="color:var(--text-muted); font-size:0.9rem; margin-top:2px;">Client: <strong>${p.client}</strong> • ${typeName}</div>
+                        </div>
+                        <span class="badge ${ui.getStatusClass(pStatus)}" style="font-size:0.8rem; padding:6px 12px;">${pStatus}</span>
+                    </div>
+
+                    <div class="proj-metrics">
+                        <div class="metric">
+                            <div class="metric-value">$${p.rate}/hr</div>
+                            <div class="metric-label">Rate</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${p.tasks.length}</div>
+                            <div class="metric-label">Tasks Planned</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value">${pTotalHours.toFixed(2)} Hrs</div>
+                            <div class="metric-label">Time Logged</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" style="color: var(--success);">${ui.formatMoney(pTotalRevenue)}</div>
+                            <div class="metric-label">Gross Revenue</div>
+                        </div>
+                    </div>
+
+                    <div class="task-list">
+                        <div class="task-list-title">
+                            Planned Project Tasks & Time Logs
+                            <span>${p.tasks.length} Tasks</span>
+                        </div>
+                        ${tasksHtml}
+                    </div>
+                </div>
+            `;
+        },
+
+        exportData: () => {
+            _db.config.exportTime = new Date().toISOString();
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(_db, null, 2));
+            const a = document.createElement('a');
+            a.setAttribute("href", dataStr);
+            a.setAttribute("download", `freelasync_backup_${_db.config.exportTime.split('T')[0]}.json`);
+            a.click();
+            ui.showNotify("Backup exported.");
+        },
+
+        importData: (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (!imported.projects) throw new Error("Invalid structure");
+                    _db = imported;
+                    state.syncDropdowns();
+                    state.save();
+                    ui.showNotify("Database restored successfully.", 'success');
+                } catch (err) {
+                    ui.showNotify("Invalid database file format.", 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+    };
+
+    const handlers = {
+        createProject: (e) => {
+            e.preventDefault();
+            const pName = document.getElementById('pName').value.trim();
+            const pClient = document.getElementById('pClient').value.trim();
+            const pType = document.getElementById('pType').value;
+            const pStatus = document.getElementById('pStatus').value;
+            const pRate = parseFloat(document.getElementById('pRate').value);
+
+            if (!pName || !pClient || isNaN(pRate) || pRate < 0) return;
+
+            state.addProject({ name: pName, client: pClient, type: pType, status: pStatus, rate: pRate });
+            ui.dom.projectForm.reset();
+        },
+
+        createTask: (e) => {
+            e.preventDefault();
+            const pid = ui.dom.tProjectSelect.value;
+            const title = document.getElementById('tTitle').value.trim();
+            const status = document.getElementById('tStatus').value;
+
+            if (!pid || !title) return;
+
+            state.addTask(pid, title, status);
+            ui.dom.taskForm.reset();
+        },
+
+        logTime: (e) => {
+            e.preventDefault();
+            const tid = ui.dom.lTaskSelect.value;
+            const startStr = document.getElementById('lStart').value;
+            const endStr = document.getElementById('lEnd').value;
+
+            if (!tid) {
+                ui.showNotify("Please select a task.", 'error');
+                return;
+            }
+
+            const check = ui.validateLog(startStr, endStr);
+            if (!check.ok) {
+                ui.showNotify(check.msg, 'error');
+                return;
+            }
+
+            state.addLog(tid, startStr, endStr);
+            ui.dom.logForm.reset();
+        }
+    };
+
+    const reports = {
+        generateHtmlReport: (pid) => {
+            const project = _db.projects.find(p => p.id === pid);
+            if (!project) return;
+
+            let totalHours = 0;
+            project.tasks.forEach(t => t.logs.forEach(l => totalHours += l.hours));
+            const totalRevenue = ui.formatMoney(totalHours * project.rate);
+            const typeName = project.type || 'Hourly';
+            const timestamp = new Date().toLocaleString('en-US');
+
+            let htmlStream = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Work Report: ${project.name} - Mostafa Sabry</title>
+<style>
+    body { font-family: -apple-system, system-ui, Arial, sans-serif; padding: 40px; color: #1a1b1e; background: #fff; font-size: 14px;}
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2196F3; padding-bottom: 20px; margin-bottom: 30px; }
+    .brand { display: flex; align-items: center; gap: 15px; }
+    .logo { width: 48px; height: 48px; }
+    h1 { margin: 0; font-size: 1.4rem; font-weight: 800; color: #121417; text-transform: uppercase;}
+    .client { font-size: 0.9rem; color: #666;}
+    
+    .meta-blocks { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 30px; }
+    .block { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 12px; text-align: center;}
+    .bl-label { font-size: 0.75rem; text-transform: uppercase; color: #777; margin-bottom: 4px;}
+    .bl-val { font-size: 1.1rem; font-weight: 700; color: #1a1b1e;}
+    .bl-val.revenue { color: #FF9800;}
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; border: 1px solid #e9ecef;}
+    th { background-color: #f8f9fa; color: #555; text-transform: uppercase; font-size: 0.7rem; padding: 10px; text-align: left; border-bottom: 1px solid #e9ecef; }
+    td { padding: 10px; border-bottom: 1px solid #e9ecef; }
+    .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #eee; text-align: center; color: #777; font-size: 0.85rem;}
+</style>
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <svg class="logo" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="46" fill="#252930"/>
+                <path d="M 23 50 C 35 27, 65 27, 77 50" stroke="#2196F3" stroke-width="7" stroke-linecap="round" fill="none"/>
+                <path d="M 23 50 L 15 45 L 15 55 Z" fill="#2196F3"/>
+                <path d="M 23 50 C 35 73, 65 73, 77 50" stroke="#FF9800" stroke-width="7" stroke-linecap="round" fill="none"/>
+                <path d="M 77 50 L 85 45 L 85 55 Z" fill="#FF9800"/>
+            </svg>
+            <div>
+                <h1>FREELASYNC Report</h1>
+                <div class="client"><strong>${project.name}</strong> (${typeName}) | Client: ${project.client}</div>
+            </div>
+        </div>
+        <div style="text-align: right; font-size: 0.8rem; color: #777;">Generated: ${timestamp}</div>
+    </header>
+
+    <div class="meta-blocks">
+        <div class="block"><div class="bl-label">Project Status</div><div class="bl-val">${project.status || 'Not Started'}</div></div>
+        <div class="block"><div class="bl-label">Hourly Rate</div><div class="bl-val">$${project.rate}/hr</div></div>
+        <div class="block"><div class="bl-label">Total Logged</div><div class="bl-val">${totalHours.toFixed(2)} Hrs</div></div>
+        <div class="block"><div class="bl-label">Total Accrued</div><div class="bl-val revenue">${totalRevenue}</div></div>
+    </div>
+
+    <h2>Planned Tasks & Logged Time Breakdown</h2>
+    ${project.tasks.map(t => `
+        <h3 style="margin-top:20px; color:#2196F3;">Task: ${t.title} [Status: ${t.status || 'Not Started'}]</h3>
+        ${t.logs.length === 0 ? '<p style="color:#777; font-style:italic;">No time logged for this task.</p>' : `
+        <table>
+            <thead>
+                <tr>
+                    <th>Time Window</th>
+                    <th>Hours</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${t.logs.map(l => `
+                    <tr>
+                        <td>${new Date(l.start).toLocaleString()} - ${new Date(l.end).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</td>
+                        <td>${l.hours} Hrs</td>
+                        <td>${ui.formatMoney(l.hours * project.rate)}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+        `}
+    `).join('')}
+
+    <div class="footer">
+        FREELASYNC Project Report • <strong>By Mostafa Sabry</strong>
+    </div>
+</body>
+</html>`;
+
+            const blob = new Blob([htmlStream], { type: "text/html;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Report_${project.name.replace(/\s+/g, '_')}.html`);
+            link.click();
+            URL.revokeObjectURL(url);
+            ui.showNotify(`Report generated for [${project.name}].`);
+        }
+    };
+
+    return { init: state.load, state, handlers, reports, ui };
+})();
+
+window.addEventListener('DOMContentLoaded', App.init);
+</script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FREELASYNC | Management Tool - Mostafa Sabry</title>
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<!-- ================= LOGIN SCREEN ================= -->
+<div id="login_screen">
+    <div class="login-card">
+        <img class="login-logo" src="assets/logo.png" alt="FreelaSync logo">
+        <div class="login-title">FREELASYNC</div>
+        <div class="login-subtitle">Project & Task Management Tool</div>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="loginUsername">Username</label>
+                <input type="text" id="loginUsername" required autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Password</label>
+                <input type="password" id="loginPassword" required autocomplete="current-password">
+            </div>
+            <div class="login-error" id="loginError"></div>
+            <button type="submit" class="btn-primary" style="width:100%;">Sign In</button>
+        </form>
+        <div class="login-hint">
+            Demo accounts (username / password):<br>
+            admin / Admin@123 &bull; owner / Owner@123 &bull; pmanager / PManager@123<br>
+            powner / POwner@123 &bull; developer / Dev@123 &bull; tester / Tester@123
+        </div>
+    </div>
+</div>
+
+<!-- ================= APP SHELL ================= -->
+<div id="app_shell">
+    <header>
+        <div class="brand-container">
+            <img class="brand-logo-img" src="assets/logo.png" alt="FreelaSync logo">
+            <div class="app-title-group">
+                <div class="app-name">FREELASYNC</div>
+                <div class="creator-tag">By Mostafa Sabry</div>
+            </div>
+        </div>
+        <div class="global-actions">
+            <div class="user-chip" id="header_user_chip"></div>
+            <button class="btn-header" onclick="App.state.exportData()">Export Database</button>
+            <button class="btn-header" onclick="document.getElementById('importFile').click()">Import</button>
+            <button class="btn-danger" id="resetDbBtn" onclick="App.state.resetDatabase()">Reset Data</button>
+            <input type="file" id="importFile" style="display:none" onchange="App.state.importData(event)">
+            <button class="btn-header" onclick="handleLogout()">Log Out</button>
+        </div>
+    </header>
+
+    <div class="tab-bar">
+        <button class="tab-btn active" id="tab_workspace_btn" onclick="switchTab('workspace')">Workspace</button>
+        <button class="tab-btn" id="tab_users_btn" style="display:none;" onclick="switchTab('users')">User Management</button>
+    </div>
+
+    <!-- WORKSPACE TAB -->
+    <main id="tab_workspace">
+        <div class="form-section" id="form_section">
+            <div class="panel" id="projectFormPanel">
+                <div class="panel-header">Create New Project</div>
+                <form id="projectForm" onsubmit="App.handlers.createProject(event)">
+                    <div class="form-group">
+                        <label for="pName">Project Name</label>
+                        <input type="text" id="pName" placeholder="e.g. Wireless Clip Test" required maxlength="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="pClient">Client Name</label>
+                        <input type="text" id="pClient" placeholder="e.g. Global Tech Solutions" required maxlength="100">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="pType">Type</label>
+                            <select id="pType" required>
+                                <option value="Hourly">Hourly</option>
+                                <option value="Fixed fee">Fixed fee</option>
+                                <option value="Retainer">Retainer</option>
+                                <option value="Value-based">Value-based</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="pStatus">Initial Status</label>
+                            <select id="pStatus" required>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Blocked">Blocked</option>
+                                <option value="Cancelled">Cancelled</option>
+                                <option value="Reviewing">Reviewing</option>
+                                <option value="Delivered">Delivered</option>
+                                <option value="On Hold">On Hold</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="pDeadline">Project Deadline</label>
+                        <input type="date" id="pDeadline">
+                    </div>
+                    <div class="form-group">
+                        <label for="pComment">Initial Comment</label>
+                        <textarea id="pComment" placeholder="Add initial project comment or note..."></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 5px;">Register Project</button>
+                </form>
+            </div>
+
+            <div class="panel" id="taskFormPanel">
+                <div class="panel-header">Add Planned Task</div>
+                <form id="taskForm" onsubmit="App.handlers.createTask(event)">
+                    <div class="form-group">
+                        <label for="tProjectSelect">Select Project</label>
+                        <select id="tProjectSelect" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tTitle">Task Title / Scope</label>
+                        <input type="text" id="tTitle" placeholder="e.g. Execute Regression Suite" required maxlength="150">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tStatus">Task Status</label>
+                            <select id="tStatus" required>
+                                <option value="Not Started">Not Started</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Blocked">Blocked</option>
+                                <option value="Cancelled">Cancelled</option>
+                                <option value="Done">Done</option>
+                                <option value="On Hold">On Hold</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="tDeadline">Task Deadline</label>
+                            <input type="date" id="tDeadline">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="tAssigneeSelect">Assign To</label>
+                        <select id="tAssigneeSelect"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tComment">Task Comments</label>
+                        <textarea id="tComment" placeholder="Optional comments or task notes..."></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 5px;">Add Task Plan</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Log Time to Task</div>
+                <form id="logForm" onsubmit="App.handlers.logTime(event)">
+                    <div class="form-group">
+                        <label for="lProjectSelect">1. Select Project</label>
+                        <select id="lProjectSelect" onchange="App.state.handleLogProjectFilterChange(this.value)" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="lTaskSelect">2. Select Planned Task</label>
+                        <select id="lTaskSelect" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="lStart">Start Time</label>
+                        <input type="datetime-local" id="lStart" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="lEnd">End Time</label>
+                        <input type="datetime-local" id="lEnd" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="lComment">Log Comments</label>
+                        <textarea id="lComment" placeholder="Optional notes on work completed during this session..."></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: 100%; margin-top: 5px;">Commit Log Entry</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="dashboard-section">
+            <div class="summary-stats" id="dashboard_summary"></div>
+            <div class="panel" id="main_content_panel"></div>
+        </div>
+    </main>
+
+    <!-- USERS TAB -->
+    <main id="tab_users" style="display:none; grid-template-columns: 1fr;">
+        <div class="panel" id="users_panel"></div>
+    </main>
+</div>
+
+<div class="modal-overlay" id="editModal">
+    <div class="modal">
+        <div class="modal-title" id="modalTitle">Edit Item</div>
+        <div id="modalBody"></div>
+        <div style="display:flex; justify-content: flex-end; gap: 8px;">
+            <button class="btn-secondary" onclick="App.ui.closeModal()">Cancel</button>
+            <button class="btn-primary" id="modalSaveBtn">Save Changes</button>
+        </div>
+    </div>
+</div>
+
+<div id="notification_pane"></div>
+
+<script src="js/db.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+<script src="js/users.js"></script>
+<script>
+"use strict";
+
+function switchTab(tab) {
+    document.getElementById('tab_workspace').style.display = tab === 'workspace' ? 'grid' : 'none';
+    document.getElementById('tab_users').style.display = tab === 'users' ? 'grid' : 'none';
+    document.getElementById('tab_workspace_btn').classList.toggle('active', tab === 'workspace');
+    document.getElementById('tab_users_btn').classList.toggle('active', tab === 'users');
+    if (tab === 'users') FreelaUsers.refresh();
+}
+
+function handleLogout() {
+    FreelaAuth.logout();
+    document.getElementById('app_shell').classList.remove('active');
+    document.getElementById('login_screen').classList.remove('hidden');
+    document.getElementById('loginForm').reset();
+}
+
+async function showApp() {
+    document.getElementById('login_screen').classList.add('hidden');
+    document.getElementById('app_shell').classList.add('active');
+    App.ui.cacheDom();
+    FreelaUsers.init();
+    App.ui.renderHeaderUser();
+    App.ui.applyPermissionVisibility();
+    await App.init();
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('loginUsername').value;
+    const password = document.getElementById('loginPassword').value;
+    const errorBox = document.getElementById('loginError');
+    errorBox.textContent = "";
+
+    const result = await FreelaAuth.login(username, password);
+    if (!result.ok) { errorBox.textContent = result.msg; return; }
+    await showApp();
+});
+
+window.addEventListener('DOMContentLoaded', async () => {
+    await FreelaAuth.seedDefaultUsers();
+    const restoredUser = await FreelaAuth.restoreSession();
+    if (restoredUser) {
+        await showApp();
+    }
+});
+</script>
+</body>
+</html>

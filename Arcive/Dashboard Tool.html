@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Freelance Dev & QA Tracker</title>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --accent-dev: #3b82f6;
+            --accent-qa: #10b981;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #475569;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+
+        h1 { font-size: 1.5rem; font-weight: 600; }
+        
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        button {
+            background-color: var(--bg-tertiary);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        button:hover { background-color: var(--border-color); }
+        button.primary { background-color: var(--accent-dev); border-color: var(--accent-dev); }
+        button.primary:hover { opacity: 0.9; }
+        button.danger { background-color: var(--danger); border-color: var(--danger); }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        .card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label { font-size: 0.85rem; color: var(--text-muted); }
+
+        input, select, textarea {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: 1px solid var(--accent-dev);
+        }
+
+        .project-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .project-card {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .project-card.active { border-left: 4px solid var(--accent-dev); }
+        .project-card.type-QA { border-left-color: var(--accent-qa); }
+
+        .project-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .badge-DEV { background-color: rgba(59, 130, 246, 0.2); color: var(--accent-dev); }
+        .badge-QA { background-color: rgba(16, 185, 129, 0.2); color: var(--accent-qa); }
+
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .stat-box {
+            background-color: var(--bg-primary);
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-box .val { font-size: 1.2rem; font-weight: bold; margin-top: 4px; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th { color: var(--text-muted); font-weight: 500; }
+
+        .log-actions { display: flex; gap: 8px; }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+
+        #notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            background-color: var(--bg-tertiary);
+            color: var(--text-main);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Freelance Dev & QA Worklog</h1>
+        <div class="header-actions">
+            <button onclick="exportJSON()">Backup Data (JSON)</button>
+            <button onclick="document.getElementById('importFile').click()">Import JSON</button>
+            <input type="file" id="importFile" style="display:none" onchange="importJSON(event)">
+        </div>
+    </header>
+
+    <div class="dashboard-grid">
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+            <div class="card">
+                <h2>Create Project</h2>
+                <form id="projectForm" onsubmit="handleCreateProject(event)">
+                    <div class="form-group">
+                        <label for="projectName">Project Name</label>
+                        <input type="text" id="projectName" required placeholder="e.g. E-Commerce Refactor">
+                    </div>
+                    <div class="form-group">
+                        <label for="projectClient">Client Name</label>
+                        <input type="text" id="projectClient" required placeholder="e.g. Acme Corp">
+                    </div>
+                    <div class="form-group">
+                        <label for="projectType">Domain / Type</label>
+                        <select id="projectType">
+                            <option value="DEV">Software Development</option>
+                            <option value="QA">Software Testing / QA</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="projectRate">Hourly Rate ($)</label>
+                        <input type="number" id="projectRate" min="0" step="0.01" required value="50.00">
+                    </div>
+                    <button type="submit" class="primary">Add Project</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Log Task Time</h2>
+                <form id="timeForm" onsubmit="handleLogTime(event)">
+                    <div class="form-group">
+                        <label for="targetProject">Select Project</label>
+                        <select id="targetProject" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskName">Task Description</label>
+                        <input type="text" id="taskName" required placeholder="e.g. Write Integration Tests">
+                    </div>
+                    <div class="form-group">
+                        <label for="taskStartTime">Start Time</label>
+                        <input type="datetime-local" id="taskStartTime" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskEndTime">End Time</label>
+                        <input type="datetime-local" id="taskEndTime" required>
+                    </div>
+                    <button type="submit" class="primary">Log Task Entry</button>
+                </form>
+            </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+            <div class="stats-summary">
+                <div class="stat-box">
+                    <div style="color: var(--text-muted); font-size: 0.8rem;">Total Hours</div>
+                    <div class="val" id="statHours">0.00</div>
+                </div>
+                <div class="stat-box">
+                    <div style="color: var(--text-muted); font-size: 0.8rem;">Total Earnings</div>
+                    <div class="val" id="statEarnings">$0.00</div>
+                </div>
+                <div class="stat-box">
+                    <div style="color: var(--text-muted); font-size: 0.8rem;">Active Projects</div>
+                    <div class="val" id="statProjects">0</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Projects & Logs</h2>
+                <div id="projectContainer" class="project-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification"></div>
+
+    <script>
+        // Data Store Interface
+        const STORAGE_KEY = 'freelance_tracker_db';
+        let db = {
+            projects: []
+        };
+
+        // Initialize Application
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            setDefaultTimeInputs();
+            render();
+        });
+
+        function setDefaultTimeInputs() {
+            const now = new Date();
+            const oneHourAgo = new Date(now.getTime() - (3600 * 1000));
+            document.getElementById('taskEndTime').value = formatDateForInput(now);
+            document.getElementById('taskStartTime').value = formatDateForInput(oneHourAgo);
+        }
+
+        function formatDateForInput(date) {
+            return date.toISOString().slice(0, 16);
+        }
+
+        function loadData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (data) {
+                try {
+                    db = JSON.parse(data);
+                } catch (e) {
+                    showNotification('Error loading stored data. Dynamic state reset.');
+                }
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+            render();
+        }
+
+        function showNotification(msg) {
+            const el = document.getElementById('notification');
+            el.innerText = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 3000);
+        }
+
+        // Logic Operations
+        function handleCreateProject(e) {
+            e.preventDefault();
+            const newProject = {
+                id: 'proj_' + Date.now(),
+                name: document.getElementById('projectName').value.trim(),
+                client: document.getElementById('projectClient').value.trim(),
+                type: document.getElementById('projectType').value,
+                rate: parseFloat(document.getElementById('projectRate').value),
+                createdAt: new Date().toISOString(),
+                logs: []
+            };
+
+            db.projects.push(newProject);
+            saveData();
+            document.getElementById('projectForm').reset();
+            showNotification('Project created successfully.');
+        }
+
+        function handleLogTime(e) {
+            e.preventDefault();
+            const projectId = document.getElementById('targetProject').value;
+            const start = new Date(document.getElementById('taskStartTime').value);
+            const end = new Date(document.getElementById('taskEndTime').value);
+
+            if (end <= start) {
+                alert('End time must be after Start time.');
+                return;
+            }
+
+            const project = db.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            const durationMs = end - start;
+            const hours = durationMs / (1000 * 60 * 60);
+
+            const newLog = {
+                id: 'log_' + Date.now(),
+                task: document.getElementById('taskName').value.trim(),
+                startTime: start.toISOString(),
+                endTime: end.toISOString(),
+                durationHours: hours
+            };
+
+            project.logs.push(newLog);
+            saveData();
+            document.getElementById('taskName').value = '';
+            setDefaultTimeInputs();
+            showNotification('Time entry logged.');
+        }
+
+        function deleteProject(projectId) {
+            if (confirm('Are you sure you want to delete this project and all associated logs?')) {
+                db.projects = db.projects.filter(p => p.id !== projectId);
+                saveData();
+                showNotification('Project deleted.');
+            }
+        }
+
+        function deleteLog(projectId, logId) {
+            const project = db.projects.find(p => p.id === projectId);
+            if (project) {
+                project.logs = project.logs.filter(l => l.id !== logId);
+                saveData();
+                showNotification('Log entry removed.');
+            }
+        }
+
+        // Rendering Engine
+        function render() {
+            renderProjectDropdown();
+            renderDashboard();
+        }
+
+        function renderProjectDropdown() {
+            const select = document.getElementById('targetProject');
+            select.innerHTML = '';
+            if (db.projects.length === 0) {
+                select.innerHTML = '<option value="">No Projects Available</option>';
+                return;
+            }
+            db.projects.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `[${p.type}] ${p.name} - ${p.client}`;
+                select.appendChild(opt);
+            });
+        }
+
+        function renderDashboard() {
+            const container = document.getElementById('projectContainer');
+            container.innerHTML = '';
+
+            let grandTotalHours = 0;
+            let grandTotalEarnings = 0;
+
+            if (db.projects.length === 0) {
+                container.innerHTML = '<div class="empty-state">No projects logged yet. Add one from the sidebar to begin tracking.</div>';
+            }
+
+            db.projects.forEach(project => {
+                const projectHours = project.logs.reduce((acc, l) => acc + l.durationHours, 0);
+                const projectEarnings = projectHours * project.rate;
+
+                grandTotalHours += projectHours;
+                grandTotalEarnings += projectEarnings;
+
+                const card = document.createElement('div');
+                card.className = `project-card type-${project.type}`;
+
+                let logsTableRows = '';
+                project.logs.forEach(log => {
+                    const startStr = new Date(log.startTime).toLocaleString();
+                    const endStr = new Date(log.endTime).toLocaleString();
+                    logsTableRows += `
+                        <tr>
+                            <td>${escapeHtml(log.task)}</td>
+                            <td>${startStr}</td>
+                            <td>${endStr}</td>
+                            <td>${log.durationHours.toFixed(2)} hrs</td>
+                            <td>$${(log.durationHours * project.rate).toFixed(2)}</td>
+                            <td>
+                                <div class="log-actions">
+                                    <button onclick="deleteLog('${project.id}', '${log.id}')" class="danger" style="padding: 2px 8px; font-size: 0.75rem;">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                card.innerHTML = `
+                    <div class="project-header">
+                        <div>
+                            <strong style="font-size: 1.1rem; color: var(--text-main);">${escapeHtml(project.name)}</strong>
+                            <span style="color: var(--text-muted); font-size: 0.9rem; margin-left: 8px;">(${escapeHtml(project.client)})</span>
+                        </div>
+                        <div>
+                            <span class="badge badge-${project.type}">${project.type === 'DEV' ? 'Development' : 'Testing/QA'}</span>
+                        </div>
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); display: flex; gap: 16px;">
+                        <span>Rate: $${project.rate.toFixed(2)}/hr</span>
+                        <span>Logged Time: ${projectHours.toFixed(2)} hrs</span>
+                        <span>Earned: $${projectEarnings.toFixed(2)}</span>
+                    </div>
+                    ${project.logs.length > 0 ? `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Task</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                    <th>Duration</th>
+                                    <th>Cost</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>${logsTableRows}</tbody>
+                        </table>
+                    ` : '<div style="font-size: 0.85rem; color: var(--text-muted); font-style: italic;">No logs recorded for this project.</div>'}
+                    <div style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button onclick="generateReport('${project.id}')" style="font-size: 0.8rem;">Export HTML Report</button>
+                        <button onclick="deleteProject('${project.id}')" class="danger" style="font-size: 0.8rem; margin-left: auto;">Delete Project</button>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('statHours').innerText = grandTotalHours.toFixed(2);
+            document.getElementById('statEarnings').innerText = '$' + grandTotalEarnings.toFixed(2);
+            document.getElementById('statProjects').innerText = db.projects.length;
+        }
+
+        // Export Standalone Dynamic HTML Report
+        function generateReport(projectId) {
+            const project = db.projects.find(p => p.id === projectId);
+            if (!project) return;
+
+            const totalHours = project.logs.reduce((acc, l) => acc + l.durationHours, 0);
+            const totalEarnings = totalHours * project.rate;
+
+            let logRows = '';
+            project.logs.forEach(l => {
+                logRows += `
+                    <tr>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${escapeHtml(l.task)}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${new Date(l.startTime).toLocaleString()}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${new Date(l.endTime).toLocaleString()}</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">${l.durationHours.toFixed(2)} hrs</td>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">$${(l.durationHours * project.rate).toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+
+            const reportHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Work Report - ${escapeHtml(project.name)}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
+        h1 { margin-bottom: 5px; }
+        .meta { color: #666; margin-bottom: 20px; }
+        .stats { display: flex; gap: 20px; margin-bottom: 20px; }
+        .stat-box { background: #f4f4f4; padding: 15px; border-radius: 4px; flex: 1; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: #f4f4f4; text-align: left; padding: 8px; border-bottom: 2px solid #ddd; }
+    </style>
+</head>
+<body>
+    <h1>Project Work Report</h1>
+    <div class="meta">
+        <strong>Project:</strong> ${escapeHtml(project.name)} | 
+        <strong>Client:</strong> ${escapeHtml(project.client)} | 
+        <strong>Type:</strong> ${project.type} |
+        <strong>Generated:</strong> ${new Date().toLocaleDateString()}
+    </div>
+    <div class="stats">
+        <div class="stat-box"><strong>Hourly Rate:</strong> $${project.rate.toFixed(2)}</div>
+        <div class="stat-box"><strong>Total Time logged:</strong> ${totalHours.toFixed(2)} hrs</div>
+        <div class="stat-box"><strong>Total Amount Due:</strong> $${totalEarnings.toFixed(2)}</div>
+    </div>
+    <h2>Logged Tasks Details</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Task Description</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>Duration</th>
+                <th>Cost</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${logRows || '<tr><td colspan="5">No logs recorded.</td></tr>'}
+        </tbody>
+    </table>
+</body>
+</html>`;
+
+            const blob = new Blob([reportHtml], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Report_${project.name.replace(/\s+/g, '_')}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Data Serialization Methods
+        function exportJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db, null, 2));
+            const dlAnchorElem = document.createElement('a');
+            dlAnchorElem.setAttribute("href", dataStr);
+            dlAnchorElem.setAttribute("download", `freelance_backup_${new Date().toISOString().slice(0,10)}.json`);
+            dlAnchorElem.click();
+        }
+
+        function importJSON(event) {
+            const fileReader = new FileReader();
+            fileReader.onload = function( e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed && Array.isArray(parsed.projects)) {
+                        db = parsed;
+                        saveData();
+                        showNotification('Data imported successfully.');
+                    } else {
+                        alert('Invalid JSON structure.');
+                    }
+                } catch (err) {
+                    alert('Error parsing uploaded JSON file.');
+                }
+            };
+            fileReader.readAsText(event.target.files[0]);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>

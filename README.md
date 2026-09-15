@@ -29,6 +29,17 @@ Built by **Mostafa Sabry**.
 - **Dashboards** with live stats (project count, planned tasks, total hours).
 - **HTML report export** per project, and a full JSON **database
   export/import** for backups.
+- **Phase 1 Supabase foundation** — a normalized shared-backend schema and
+  browser client configuration are included under `supabase/` and `js/`.
+- **Phase 2 Monitoring MVP** — searchable project monitoring, task priorities,
+  dependencies, blockers, Kanban status movement, overdue/workload metrics,
+  activity feeds, and local notifications.
+- **Phase 3 Communication MVP** — threaded project replies, @mentions,
+  decision records, meeting notes, and attachment links.
+- **Phase 4 SDLC MVP** — requirements, acceptance criteria, test cases, bug
+  records, approvals, and release planning.
+- **Phase 5 freelance operations** — milestone planning, invoicing, billing
+  status, and project value monitoring for client work and contractor delivery.
 - **Theme matched to the brand logo** — navy blue (`#1f6fb2`) and teal/green
   (`#14b8a6`) accents on a dark UI.
 
@@ -60,7 +71,72 @@ site publicly** (see Security notes below).
 | `developer` | `Dev@123` | Developer |
 | `tester` | `Tester@123` | Tester |
 
-## 4. Data storage & security notes (read before publishing)
+## 4. Phase 1 shared backend setup
+
+The current UI still uses IndexedDB until the data/auth adapters are migrated.
+Phase 1 prepares the production backend without placing secrets in the
+repository:
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor** and run `supabase/schema.sql`.
+3. In Supabase **Project Settings → API**, copy the project URL and the public
+  `anon` key into `js/supabase-config.js`.
+4. Never copy the `service_role` key into frontend code or commit it to GitHub.
+5. The next phase will replace local login and browser storage with Supabase
+  Auth and the tables created by this schema.
+
+The schema creates organizations, profiles, memberships, projects, tasks,
+comments, time logs, activity events, decisions, meeting notes, and attachment
+metadata. Row-level security is
+enabled with read policies for authenticated members; write policies will be
+added alongside the application operations so each workflow is authorized at
+the database boundary.
+
+### Phase 2 local test checklist
+
+1. Start the site with `python -m http.server 8080`.
+2. Sign in as `admin` or `pmanager`.
+3. Create projects and tasks with different priorities, deadlines, and
+  assignees.
+4. Open **Kanban** in the monitoring workspace and drag tasks between status
+  columns.
+5. Open a task, add dependencies or a blocker, then resolve the blocker.
+6. Test search, project status, priority, and assignee filters.
+7. Assign a task to another demo user, log out, sign in as that user, and
+  inspect the notification badge and notification list.
+
+### Phase 3 local test checklist
+
+1. Open a project and post a comment containing `@developer`.
+2. Sign in as `developer` and verify the mention appears in Notifications.
+3. Reply to a project comment.
+4. Add a decision and a meeting note with action items.
+5. Link a shared file URL under Attachments and open it in a new tab.
+6. Confirm all communication records remain after refreshing the page.
+
+Phase 3 stores attachment links locally for now. Supabase Storage upload,
+private file access, and shared realtime threads will be connected when the
+Supabase data/auth migration is implemented.
+
+### Phase 4 local test checklist
+
+1. Open a project and a task.
+2. Add a requirement and acceptance criteria.
+3. Add a test case, then mark it Passed or Failed.
+4. Report a bug and verify it appears under the task.
+5. Request an approval, then approve or reject it as a manager.
+6. Plan a release with a version and release notes.
+7. Refresh the page and confirm the SDLC records remain available.
+
+### Phase 5 local test checklist
+
+1. Open an individual project and review the new Finance Snapshot panel.
+2. Add a milestone with a target date and amount, then mark it in progress or done.
+3. Add an invoice with an amount and due date, then update it to Paid or Pending.
+4. Confirm the collected, outstanding, and milestone totals update immediately.
+5. Refresh the browser and verify the billing data remains stored locally.
+
+## 5. Data storage & security notes (read before publishing)
 
 This is a **static site** — there is no backend server, so all data (users,
 projects, tasks, time logs) lives **only in each visitor's own browser**
@@ -79,7 +155,7 @@ projects, tasks, time logs) lives **only in each visitor's own browser**
   this project intentionally has none so it can be hosted for free on GitHub
   Pages.
 
-## 5. Run locally
+## 6. Run locally
 
 Just open `index.html` in a browser, or serve the folder with any static
 server, for example:
@@ -90,7 +166,7 @@ python -m http.server 8080
 # then browse to http://localhost:8080
 ```
 
-## 6. Publish on GitHub Pages — step by step
+## 7. Publish on GitHub Pages — step by step
 
 1. **Create a GitHub repository**
    - Go to [github.com/new](https://github.com/new).
@@ -153,7 +229,7 @@ root, then configure the domain's DNS with a `CNAME` record pointing to
 [GitHub's custom domain docs](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site)),
 and set the custom domain under **Settings → Pages → Custom domain**.
 
-## 7. Changing the default passwords / roles
+## 8. Changing the default passwords / roles
 
 Before publishing publicly, open `js/auth.js` and edit the `DEFAULT_USERS`
 array to set your own usernames/passwords, or simply sign in as `admin` /

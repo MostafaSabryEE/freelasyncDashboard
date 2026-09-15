@@ -1,0 +1,7 @@
+git add .
+
+git commit -m "Updated homepage layout and fixed styles"
+
+git push origin main
+
+Time to Reflect: It usually takes 30 seconds to 2 minutes for the live URL [https://mostafasabryee.github.io/freelasyncDashboard

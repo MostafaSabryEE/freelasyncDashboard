@@ -140,6 +140,10 @@ const FreelaAuth = (() => {
         return _currentUser;
     }
 
+    function updateCachedUser(user) {
+        _currentUser = user;
+    }
+
     function getPermissions() {
         if (!_currentUser) return ROLES.tester;
         return ROLES[_currentUser.role] || ROLES.tester;
@@ -180,7 +184,7 @@ const FreelaAuth = (() => {
     }
 
     return {
-        ROLES, seedDefaultUsers, login, logout, restoreSession, getCurrentUser,
+        ROLES, seedDefaultUsers, login, logout, restoreSession, getCurrentUser, updateCachedUser,
         getPermissions, roleLabel, createUser, updateUser, deleteUser, sha256
     };
 })();

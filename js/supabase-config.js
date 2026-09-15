@@ -6,8 +6,8 @@
  */
 const FreelaSupabase = (() => {
     const config = {
-        url: "",
-        anonKey: ""
+        url: "https://pmlxghpmfqnehlgsitqe.supabase.co",
+        anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtbHhnaHBtZnFuZWhsZ3NpdHFlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0OTk5ODMsImV4cCI6MjEwNTA3NTk4M30.FAFhTQx9fKhYRw4OYgjSyYzCxqtpGmRmXeO7NLjxUeQ"
     };
 
     function isConfigured() {

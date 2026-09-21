@@ -1,6 +1,6 @@
 "use strict";
 /*
- * User management panel (Admin / Owner only).
+ * User management panel (Admin / Project Manager only).
  */
 const FreelaUsers = (() => {
     let _users = [];
@@ -21,25 +21,29 @@ const FreelaUsers = (() => {
     function render() {
         if (!dom.panel) return;
         const perms = FreelaAuth.getPermissions();
+        const currentUser = FreelaAuth.getCurrentUser();
         if (!perms.manageUsers) {
             dom.panel.innerHTML = "";
             return;
         }
 
-        const rows = _users.map(u => `
+        const rows = _users.map(u => {
+            const protectedAdmin = currentUser?.role === "project_manager" && u.role === "admin";
+            return `
             <tr>
                 <td>${u.username}</td>
                 <td>${u.fullName}</td>
                 <td><span class="badge role-badge role-${u.role}">${FreelaAuth.roleLabel(u.role)}</span></td>
                 <td>${u.active === false ? '<span class="badge st-blocked">Disabled</span>' : '<span class="badge st-delivered">Active</span>'}</td>
                 <td class="user-row-actions">
-                    <button class="btn-secondary btn-sm" onclick="FreelaUsers.openEdit('${u.id}')">Edit</button>
-                    <button class="btn-danger btn-sm" onclick="FreelaUsers.remove('${u.id}')">Delete</button>
+                    ${protectedAdmin ? '<span style="color:var(--text-muted); font-size:0.75rem;">Protected</span>' : `<button class="btn-secondary btn-sm" onclick="FreelaUsers.openEdit('${u.id}')">Edit</button><button class="btn-danger btn-sm" onclick="FreelaUsers.remove('${u.id}')">Delete</button>`}
                 </td>
             </tr>
-        `).join("");
+        `;
+        }).join("");
 
         const roleOptions = Object.keys(FreelaAuth.ROLES)
+            .filter(key => !(currentUser?.role === "project_manager" && key === "admin"))
             .map(key => `<option value="${key}">${FreelaAuth.ROLES[key].label}</option>`).join("");
 
         dom.panel.innerHTML = `
@@ -83,7 +87,12 @@ const FreelaUsers = (() => {
     function openEdit(id) {
         const user = _users.find(u => u.id === id);
         if (!user) return;
+        if (FreelaAuth.getCurrentUser()?.role === "project_manager" && user.role === "admin") {
+            App.ui.showNotify("Project Managers cannot edit Admin accounts.", "error");
+            return;
+        }
         const roleOptions = Object.keys(FreelaAuth.ROLES)
+            .filter(key => !(FreelaAuth.getCurrentUser()?.role === "project_manager" && key === "admin"))
             .map(key => `<option value="${key}" ${key === user.role ? "selected" : ""}>${FreelaAuth.ROLES[key].label}</option>`).join("");
 
         const html = `
@@ -113,6 +122,11 @@ const FreelaUsers = (() => {
     }
 
     async function remove(id) {
+        const user = _users.find(item => item.id === id);
+        if (FreelaAuth.getCurrentUser()?.role === "project_manager" && user?.role === "admin") {
+            App.ui.showNotify("Project Managers cannot delete Admin accounts.", "error");
+            return;
+        }
         if (!confirm("Delete this user account permanently?")) return;
         const result = await FreelaAuth.deleteUser(id);
         if (!result.ok) {

@@ -146,10 +146,13 @@ const App = (() => {
 
         applyPermissionVisibility: () => {
             const perms = FreelaAuth.getPermissions();
-            if (ui.dom.formSection) ui.dom.formSection.style.display = (perms.manageProjects || perms.manageTasks) ? 'flex' : 'none';
+            if (ui.dom.formSection) ui.dom.formSection.style.display = (perms.manageProjects || perms.manageTasks || perms.assignTasks) ? 'flex' : 'none';
             document.getElementById('projectFormPanel').style.display = perms.manageProjects ? 'flex' : 'none';
-            document.getElementById('taskFormPanel').style.display = perms.manageProjects ? 'flex' : 'none';
+            document.getElementById('taskFormPanel').style.display = (perms.manageProjects || perms.assignTasks) ? 'flex' : 'none';
             document.getElementById('resetDbBtn').style.display = perms.deleteData ? 'inline-block' : 'none';
+            const isAdmin = FreelaAuth.getCurrentUser()?.role === 'admin';
+            document.getElementById('exportDataBtn').style.display = isAdmin ? 'inline-block' : 'none';
+            document.getElementById('importDataBtn').style.display = isAdmin ? 'inline-block' : 'none';
 
             const usersTabBtn = document.getElementById('tab_users_btn');
             if (usersTabBtn) usersTabBtn.style.display = perms.manageUsers ? 'inline-block' : 'none';
@@ -166,6 +169,16 @@ const App = (() => {
 
         reloadProjects: async () => {
             _projects = await FreelaDB.getAll("projects");
+            const currentUser = FreelaAuth.getCurrentUser();
+            if (currentUser && currentUser.role === "owner") {
+                _projects = _projects.filter(project => (project.assignedOwnerId || project.ownerId) === currentUser.id);
+            }
+            if (currentUser && currentUser.role === "project_manager") {
+                _projects = _projects.filter(project =>
+                    project.createdBy === currentUser.id ||
+                    (project.assignedManagerId || project.projectManagerId) === currentUser.id
+                );
+            }
             _projects.sort((a, b) => a.id.localeCompare(b.id));
         },
 
@@ -182,7 +195,7 @@ const App = (() => {
 
         canEditTask: (task) => {
             const perms = FreelaAuth.getPermissions();
-            if (perms.manageProjects) return true;
+            if (perms.manageProjects || perms.assignTasks) return true;
             const user = FreelaAuth.getCurrentUser();
             return perms.manageOwnTasksOnly && user && task.assignedTo === user.id;
         },
@@ -206,7 +219,7 @@ const App = (() => {
                 decisions: [], meetingNotes: [], attachments: [], approvals: [], releases: [],
                 milestones: [], invoices: [], currency: pData.currency || 'USD',
                 budget: Number(pData.budget || 0), hourlyRate: Number(pData.hourlyRate || 0),
-                clientPortalStatus: 'Open', billingNotes: [], createdBy: FreelaAuth.getCurrentUser().id
+                clientPortalStatus: 'Open', billingNotes: [], assignedOwnerId: pData.assignedOwnerId || "", assignedManagerId: pData.assignedManagerId || "", createdBy: FreelaAuth.getCurrentUser().id
             };
 
             state.recordActivity(project, "project_created", `Project created by ${FreelaAuth.getCurrentUser().fullName}.`);
@@ -223,11 +236,19 @@ const App = (() => {
             if (!p) return;
             const typeOptions = PROJECT_TYPES.map(t => `<option value="${t}" ${p.type === t ? 'selected' : ''}>${t}</option>`).join('');
             const statusOptions = PROJECT_STATUSES.map(s => `<option value="${s}" ${p.status === s ? 'selected' : ''}>${s}</option>`).join('');
+            const assignedOwnerId = p.assignedOwnerId || p.ownerId || "";
+            const ownerOptions = `<option value="">Select an owner</option>` + _users.filter(user => user.role === 'owner').map(user => `<option value="${user.id}" ${assignedOwnerId === user.id ? 'selected' : ''}>${ui.escapeHtml(user.fullName)}</option>`).join('');
+            const assignedManagerId = p.assignedManagerId || p.projectManagerId || "";
+            const managerOptions = `<option value="">Select a project manager</option>` + _users.filter(user => user.role === 'project_manager').map(user => `<option value="${user.id}" ${assignedManagerId === user.id ? 'selected' : ''}>${ui.escapeHtml(user.fullName)}</option>`).join('');
+            const currencyOptions = ['USD', 'EGP', 'EUR', 'GBP', 'SAR', 'AED'].map(currency => `<option value="${currency}" ${(p.currency || 'USD') === currency ? 'selected' : ''}>${currency}</option>`).join('');
             const html = `
                 <div class="form-group"><label>Project Name</label><input type="text" id="mPName" value="${p.name}"></div>
                 <div class="form-group"><label>Client Name</label><input type="text" id="mPClient" value="${p.client}"></div>
                 <div class="form-group"><label>Project Type</label><select id="mPType">${typeOptions}</select></div>
                 <div class="form-group"><label>Project Status</label><select id="mPStatus">${statusOptions}</select></div>
+                <div class="form-group"><label>Assigned Owner</label><select id="mPOwner">${ownerOptions}</select></div>
+                <div class="form-group"><label>Assigned Project Manager</label><select id="mPManager">${managerOptions}</select></div>
+                <div class="form-group"><label>Currency</label><select id="mPCurrency">${currencyOptions}</select></div>
                 <div class="form-group"><label>Project Deadline</label><input type="date" id="mPDeadline" value="${p.deadline || ''}"></div>
             `;
             ui.openModal("Edit Project Details", html, async () => {
@@ -235,6 +256,11 @@ const App = (() => {
                 p.client = document.getElementById('mPClient').value.trim() || p.client;
                 p.type = document.getElementById('mPType').value;
                 p.status = document.getElementById('mPStatus').value;
+                p.assignedOwnerId = document.getElementById('mPOwner').value;
+                delete p.ownerId;
+                p.assignedManagerId = document.getElementById('mPManager').value;
+                delete p.projectManagerId;
+                p.currency = document.getElementById('mPCurrency').value;
                 p.deadline = document.getElementById('mPDeadline').value;
                 await FreelaDB.put("projects", p);
                 ui.closeModal();
@@ -276,7 +302,7 @@ const App = (() => {
 
         addProjectComment: async (pid, commentText, replyTo = null) => {
             const p = _projects.find(x => x.id === pid);
-            if (!p || !commentText.trim()) return;
+            if (!p || !commentText.trim() || !FreelaAuth.getPermissions().addComments) return;
             if (!p.commentsHistory) p.commentsHistory = [];
             const cSeq = await state.nextSeq("commentSeq");
             p.commentsHistory.unshift({ id: `C-${String(cSeq).padStart(5, '0')}`, timestamp: new Date().toISOString(), text: commentText.trim(), author: FreelaAuth.getCurrentUser().fullName, replyTo, mentions: state.extractMentions(commentText) });
@@ -328,47 +354,97 @@ const App = (() => {
 
         addDecision: async (pid) => {
             const project = _projects.find(item => item.id === pid);
-            if (!project || !FreelaAuth.getPermissions().manageTasks) return;
-            const title = prompt("Decision title:");
-            if (!title || !title.trim()) return;
-            const rationale = prompt("Decision and rationale:");
-            if (!rationale || !rationale.trim()) return;
-            if (!project.decisions) project.decisions = [];
-            project.decisions.unshift({ id: `D-${Date.now()}`, title: title.trim(), rationale: rationale.trim(), status: "Recorded", author: FreelaAuth.getCurrentUser().fullName, createdAt: new Date().toISOString() });
-            state.recordActivity(project, "decision_recorded", `Decision recorded: ${title.trim()}.`);
-            await FreelaDB.put("projects", project);
-            state.refreshDashboard();
+            if (!project || !(FreelaAuth.getPermissions().manageProjects || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Add Decision", `<div class="form-group"><label>Decision title</label><input id="dialogDecisionTitle" required></div><div class="form-group"><label>Decision and rationale</label><textarea id="dialogDecisionRationale" required></textarea></div>`, async () => {
+                const title = document.getElementById('dialogDecisionTitle').value.trim();
+                const rationale = document.getElementById('dialogDecisionRationale').value.trim();
+                if (!title || !rationale) return;
+                if (!project.decisions) project.decisions = [];
+                project.decisions.unshift({ id: `D-${Date.now()}`, title, rationale, status: "Recorded", author: FreelaAuth.getCurrentUser().fullName, createdAt: new Date().toISOString() });
+                state.recordActivity(project, "decision_recorded", `Decision recorded: ${title}.`);
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
+        },
+
+        editDecision: (pid, decisionId) => {
+            const project = _projects.find(item => item.id === pid);
+            const decision = project && (project.decisions || []).find(item => item.id === decisionId);
+            if (!project || !decision || !(FreelaAuth.getPermissions().manageProjects || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Edit Decision", `<div class="form-group"><label>Decision title</label><input id="dialogDecisionTitle" value="${ui.escapeHtml(decision.title)}" required></div><div class="form-group"><label>Decision and rationale</label><textarea id="dialogDecisionRationale" required>${ui.escapeHtml(decision.rationale)}</textarea></div>`, async () => {
+                decision.title = document.getElementById('dialogDecisionTitle').value.trim();
+                decision.rationale = document.getElementById('dialogDecisionRationale').value.trim();
+                if (!decision.title || !decision.rationale) return;
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
         },
 
         addMeetingNote: async (pid) => {
             const project = _projects.find(item => item.id === pid);
-            if (!project || !FreelaAuth.getPermissions().manageTasks) return;
-            const subject = prompt("Meeting subject:");
-            if (!subject || !subject.trim()) return;
-            const notes = prompt("Meeting notes and action items:");
-            if (!notes || !notes.trim()) return;
-            if (!project.meetingNotes) project.meetingNotes = [];
-            project.meetingNotes.unshift({ id: `M-${Date.now()}`, subject: subject.trim(), notes: notes.trim(), author: FreelaAuth.getCurrentUser().fullName, createdAt: new Date().toISOString() });
-            state.recordActivity(project, "meeting_note_added", `Meeting notes added: ${subject.trim()}.`);
-            await FreelaDB.put("projects", project);
-            state.refreshDashboard();
+            if (!project || !(FreelaAuth.getPermissions().manageTasks || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Add Meeting Note", `<div class="form-group"><label>Meeting subject</label><input id="dialogMeetingSubject" required></div><div class="form-group"><label>Meeting notes and action items</label><textarea id="dialogMeetingNotes" required></textarea></div>`, async () => {
+                const subject = document.getElementById('dialogMeetingSubject').value.trim();
+                const notes = document.getElementById('dialogMeetingNotes').value.trim();
+                if (!subject || !notes) return;
+                if (!project.meetingNotes) project.meetingNotes = [];
+                project.meetingNotes.unshift({ id: `M-${Date.now()}`, subject, notes, author: FreelaAuth.getCurrentUser().fullName, createdAt: new Date().toISOString() });
+                state.recordActivity(project, "meeting_note_added", `Meeting notes added: ${subject}.`);
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
         },
 
         addAttachmentLink: async (pid) => {
             const project = _projects.find(item => item.id === pid);
-            if (!project || !FreelaAuth.getPermissions().manageTasks) return;
-            const name = prompt("Attachment name:");
-            const url = prompt("Attachment URL (Supabase Storage or shared file link):");
-            if (!name || !url || !name.trim() || !url.trim()) return;
-            try { new URL(url.trim()); } catch (error) { ui.showNotify("Enter a valid attachment URL.", "error"); return; }
-            if (!project.attachments) project.attachments = [];
-            project.attachments.unshift({ id: `F-${Date.now()}`, name: name.trim(), url: url.trim(), uploadedBy: FreelaAuth.getCurrentUser().fullName, createdAt: new Date().toISOString() });
-            state.recordActivity(project, "attachment_added", `Attachment added: ${name.trim()}.`);
-            await FreelaDB.put("projects", project);
-            state.refreshDashboard();
+            if (!project || !(FreelaAuth.getPermissions().manageTasks || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Add Attachment", `<div class="form-group"><label>Attachment name</label><input id="dialogAttachmentName" required></div><div class="form-group"><label>Attachment URL</label><input id="dialogAttachmentUrl" type="url" required></div>`, async () => {
+                const name = document.getElementById('dialogAttachmentName').value.trim();
+                const url = document.getElementById('dialogAttachmentUrl').value.trim();
+                if (!name || !url) return;
+                try { new URL(url); } catch (error) { ui.showNotify("Enter a valid attachment URL.", "error"); return; }
+                if (!project.attachments) project.attachments = [];
+                project.attachments.unshift({ id: `F-${Date.now()}`, name, url, uploadedBy: FreelaAuth.getCurrentUser().fullName, createdAt: new Date().toISOString() });
+                state.recordActivity(project, "attachment_added", `Attachment added: ${name}.`);
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
+        },
+
+        editAttachment: (pid, attachmentId) => {
+            const project = _projects.find(item => item.id === pid);
+            const attachment = project && (project.attachments || []).find(item => item.id === attachmentId);
+            if (!project || !attachment || !(FreelaAuth.getPermissions().manageProjects || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Edit Attachment", `<div class="form-group"><label>Attachment name</label><input id="dialogAttachmentName" value="${ui.escapeHtml(attachment.name)}" required></div><div class="form-group"><label>Attachment URL</label><input id="dialogAttachmentUrl" type="url" value="${ui.escapeHtml(attachment.url)}" required></div>`, async () => {
+                const name = document.getElementById('dialogAttachmentName').value.trim();
+                const url = document.getElementById('dialogAttachmentUrl').value.trim();
+                if (!name || !url) return;
+                try { new URL(url); } catch (error) { ui.showNotify("Enter a valid attachment URL.", "error"); return; }
+                attachment.name = name;
+                attachment.url = url;
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
         },
 
         deleteProject: async (pid) => {
+            const project = _projects.find(item => item.id === pid);
+            const currentUser = FreelaAuth.getCurrentUser();
+            const perms = FreelaAuth.getPermissions();
+            if (!project) return;
+            if (currentUser?.role === 'project_manager' && project.createdBy !== currentUser.id) {
+                ui.showNotify("Project Managers can only delete projects they created.", "error");
+                return;
+            }
+            if (!perms.deleteData && currentUser?.role !== 'project_manager') {
+                ui.showNotify("You do not have permission to delete projects.", "error");
+                return;
+            }
             if (!confirm(`Remove project [${pid}] and all attached tasks/logs?`)) return;
             await FreelaDB.remove("projects", pid);
             await state.reloadProjects();
@@ -496,14 +572,30 @@ const App = (() => {
 
         addApproval: async (pid) => {
             const project = _projects.find(item => item.id === pid);
-            if (!project || !FreelaAuth.getPermissions().manageTasks) return;
-            const subject = prompt("Approval subject:");
-            if (!subject || !subject.trim()) return;
-            project.approvals = project.approvals || [];
-            project.approvals.unshift({ id: `APR-${Date.now()}`, subject: subject.trim(), status: "Pending", requestedBy: FreelaAuth.getCurrentUser().fullName, decidedBy: "", createdAt: new Date().toISOString() });
-            state.recordActivity(project, "approval_requested", `Approval requested: ${subject.trim()}.`);
-            await FreelaDB.put("projects", project);
-            state.refreshDashboard();
+            if (!project || !(FreelaAuth.getPermissions().manageTasks || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Request Approval", `<div class="form-group"><label>Approval subject</label><input id="dialogApprovalSubject" required></div>`, async () => {
+                const subject = document.getElementById('dialogApprovalSubject').value.trim();
+                if (!subject) return;
+                project.approvals = project.approvals || [];
+                project.approvals.unshift({ id: `APR-${Date.now()}`, subject, status: "Pending", requestedBy: FreelaAuth.getCurrentUser().fullName, decidedBy: "", createdAt: new Date().toISOString() });
+                state.recordActivity(project, "approval_requested", `Approval requested: ${subject}.`);
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
+        },
+
+        editApproval: (pid, approvalId) => {
+            const project = _projects.find(item => item.id === pid);
+            const approval = project && (project.approvals || []).find(item => item.id === approvalId);
+            if (!project || !approval || !(FreelaAuth.getPermissions().manageProjects || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Edit Approval", `<div class="form-group"><label>Approval subject</label><input id="dialogApprovalSubject" value="${ui.escapeHtml(approval.subject)}" required></div>`, async () => {
+                approval.subject = document.getElementById('dialogApprovalSubject').value.trim();
+                if (!approval.subject) return;
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
         },
 
         decideApproval: async (pid, approvalId, status) => {
@@ -520,37 +612,63 @@ const App = (() => {
 
         addRelease: async (pid) => {
             const project = _projects.find(item => item.id === pid);
-            if (!project || !FreelaAuth.getPermissions().manageProjects) return;
-            const version = prompt("Release version:");
-            const notes = prompt("Release notes:");
-            if (!version || !notes || !version.trim() || !notes.trim()) return;
-            project.releases = project.releases || [];
-            project.releases.unshift({ id: `REL-${Date.now()}`, version: version.trim(), notes: notes.trim(), status: "Planned", plannedDate: "", createdBy: FreelaAuth.getCurrentUser().fullName, createdAt: new Date().toISOString() });
-            state.recordActivity(project, "release_created", `Release ${version.trim()} planned.`);
-            await FreelaDB.put("projects", project);
-            state.refreshDashboard();
+            if (!project || !(FreelaAuth.getPermissions().manageProjects || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Plan Release", `<div class="form-group"><label>Release version</label><input id="dialogReleaseVersion" required></div><div class="form-group"><label>Release notes</label><textarea id="dialogReleaseNotes" required></textarea></div>`, async () => {
+                const version = document.getElementById('dialogReleaseVersion').value.trim();
+                const notes = document.getElementById('dialogReleaseNotes').value.trim();
+                if (!version || !notes) return;
+                project.releases = project.releases || [];
+                project.releases.unshift({ id: `REL-${Date.now()}`, version, notes, status: "Planned", plannedDate: "", createdBy: FreelaAuth.getCurrentUser().fullName, createdAt: new Date().toISOString() });
+                state.recordActivity(project, "release_created", `Release ${version} planned.`);
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
+        },
+
+        editRelease: (pid, releaseId) => {
+            const project = _projects.find(item => item.id === pid);
+            const release = project && (project.releases || []).find(item => item.id === releaseId);
+            if (!project || !release || !(FreelaAuth.getPermissions().manageProjects || FreelaAuth.getCurrentUser()?.role === 'owner')) return;
+            ui.openModal("Edit Release", `<div class="form-group"><label>Release version</label><input id="dialogReleaseVersion" value="${ui.escapeHtml(release.version)}" required></div><div class="form-group"><label>Release notes</label><textarea id="dialogReleaseNotes" required>${ui.escapeHtml(release.notes)}</textarea></div>`, async () => {
+                release.version = document.getElementById('dialogReleaseVersion').value.trim();
+                release.notes = document.getElementById('dialogReleaseNotes').value.trim();
+                if (!release.version || !release.notes) return;
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
+            });
         },
 
         addMilestone: async (pid) => {
             const project = _projects.find(item => item.id === pid);
             if (!project || !FreelaAuth.getPermissions().manageProjects) return;
-            const title = prompt("Milestone title:");
-            const amountString = prompt("Milestone value or amount:", "0");
-            const dueDate = prompt("Milestone due date (YYYY-MM-DD):", "");
-            if (!title || !title.trim()) return;
-            project.milestones = project.milestones || [];
-            const amount = Number(amountString || 0);
-            project.milestones.unshift({
-                id: `MS-${Date.now()}`,
-                title: title.trim(),
-                amount: Number.isFinite(amount) ? amount : 0,
-                dueDate: dueDate || "",
-                status: "Planned",
-                createdAt: new Date().toISOString()
+            ui.openModal("Add Milestone", `
+                <div class="form-group"><label>Milestone title</label><input type="text" id="dialogMilestoneTitle" required maxlength="120"></div>
+                <div class="form-group"><label>Budget amount</label><input type="number" id="dialogMilestoneAmount" min="0" step="0.01" value="0" required></div>
+                <div class="form-group"><label>Due date</label><input type="date" id="dialogMilestoneDueDate"></div>
+            `, async () => {
+                const title = document.getElementById("dialogMilestoneTitle").value.trim();
+                const amount = Number(document.getElementById("dialogMilestoneAmount").value);
+                const dueDate = document.getElementById("dialogMilestoneDueDate").value;
+                if (!title || !Number.isFinite(amount) || amount < 0) {
+                    ui.showNotify("Enter a milestone title and a valid budget amount.", "error");
+                    return;
+                }
+                project.milestones = project.milestones || [];
+                project.milestones.unshift({
+                    id: `MS-${Date.now()}`,
+                    title,
+                    amount,
+                    dueDate,
+                    status: "Planned",
+                    createdAt: new Date().toISOString()
+                });
+                state.recordActivity(project, "milestone_added", `Milestone "${title}" planned.`);
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
             });
-            state.recordActivity(project, "milestone_added", `Milestone "${title.trim()}" planned.`);
-            await FreelaDB.put("projects", project);
-            state.refreshDashboard();
         },
 
         updateMilestoneStatus: async (pid, milestoneId, status) => {
@@ -565,31 +683,56 @@ const App = (() => {
 
         addInvoice: async (pid) => {
             const project = _projects.find(item => item.id === pid);
-            if (!project || !FreelaAuth.getPermissions().manageProjects) return;
-            const invoiceNumber = prompt("Invoice reference:");
-            const amountString = prompt("Invoice amount:", "0");
-            const dueDate = prompt("Due date (YYYY-MM-DD):", "");
-            if (!invoiceNumber || !invoiceNumber.trim()) return;
-            project.invoices = project.invoices || [];
-            const amount = Number(amountString || 0);
-            project.invoices.unshift({
-                id: `INV-${Date.now()}`,
-                invoiceNumber: invoiceNumber.trim(),
-                amount: Number.isFinite(amount) ? amount : 0,
-                dueDate: dueDate || "",
-                status: "Open",
-                createdAt: new Date().toISOString()
+            const perms = FreelaAuth.getPermissions();
+            if (!project || !perms.submitInvoices) return;
+            const milestones = project.milestones || [];
+            const milestoneOptions = `<option value="">No milestone</option>` + milestones.map(item => `<option value="${ui.escapeHtml(item.id)}">${ui.escapeHtml(item.title)} (${ui.formatMoney(item.amount, project.currency || 'USD')})</option>`).join('');
+            ui.openModal("Submit Invoice", `
+                <div class="form-group"><label>Invoice reference</label><input type="text" id="dialogInvoiceNumber" required maxlength="80"></div>
+                <div class="form-group"><label>Invoice amount</label><input type="number" id="dialogInvoiceAmount" min="0" step="0.01" value="0" required></div>
+                <div class="form-group"><label>Due date</label><input type="date" id="dialogInvoiceDueDate"></div>
+                <div class="form-group"><label>Related milestone</label><select id="dialogInvoiceMilestone">${milestoneOptions}</select></div>
+            `, async () => {
+                const invoiceNumber = document.getElementById("dialogInvoiceNumber").value.trim();
+                const amount = Number(document.getElementById("dialogInvoiceAmount").value);
+                const dueDate = document.getElementById("dialogInvoiceDueDate").value;
+                const milestoneId = document.getElementById("dialogInvoiceMilestone").value;
+                if (!invoiceNumber || !Number.isFinite(amount) || amount < 0) {
+                    ui.showNotify("Enter an invoice reference and a valid amount.", "error");
+                    return;
+                }
+                project.invoices = project.invoices || [];
+                const user = FreelaAuth.getCurrentUser();
+                project.invoices.unshift({
+                    id: `INV-${Date.now()}`,
+                    invoiceNumber,
+                    amount,
+                    dueDate,
+                    status: "Pending",
+                    submittedBy: user.fullName,
+                    submittedById: user.id,
+                    milestoneId,
+                    createdAt: new Date().toISOString()
+                });
+                state.recordActivity(project, "invoice_added", `Invoice ${invoiceNumber} created.`);
+                await FreelaDB.put("projects", project);
+                ui.closeModal();
+                state.refreshDashboard();
             });
-            state.recordActivity(project, "invoice_added", `Invoice ${invoiceNumber.trim()} created.`);
-            await FreelaDB.put("projects", project);
-            state.refreshDashboard();
         },
 
         updateInvoiceStatus: async (pid, invoiceId, status) => {
             const project = _projects.find(item => item.id === pid);
             const invoice = project && (project.invoices || []).find(item => item.id === invoiceId);
-            if (!project || !invoice || !FreelaAuth.getPermissions().manageProjects) return;
+            const perms = FreelaAuth.getPermissions();
+            const user = FreelaAuth.getCurrentUser();
+            const canApprove = perms.approveInvoices && invoice && invoice.status === 'Pending' && status === 'Approved';
+            const canReject = perms.approveInvoices && invoice && invoice.status === 'Pending' && status === 'Rejected';
+            const canConfirmCollection = perms.submitInvoices && invoice && invoice.status === 'Approved' && invoice.submittedById === user.id && status === 'Collected';
+            if (!project || !invoice || !(canApprove || canReject || canConfirmCollection)) return;
             invoice.status = status;
+            invoice.updatedBy = user.fullName;
+            invoice.updatedAt = new Date().toISOString();
             state.recordActivity(project, "invoice_updated", `Invoice ${invoice.invoiceNumber} marked ${status}.`);
             await FreelaDB.put("projects", project);
             state.refreshDashboard();
@@ -608,19 +751,19 @@ const App = (() => {
             const blockersText = (task.blockers || []).filter(b => b.status !== 'resolved').map(b => b.text).join('\n');
 
             const html = `
-                <div class="form-group"><label>Task Title</label><input type="text" id="mTTitle" value="${task.title}" ${perms.manageProjects ? '' : 'disabled'}></div>
+                <div class="form-group"><label>Task Title</label><input type="text" id="mTTitle" value="${task.title}" ${perms.manageProjects || perms.assignTasks ? '' : 'disabled'}></div>
                 <div class="form-group"><label>Task Status</label><select id="mTStatus">${statusOptions}</select></div>
                 <div class="form-group"><label>Priority</label><select id="mTPriority">${priorityOptions}</select></div>
-                <div class="form-group"><label>Task Deadline</label><input type="date" id="mTDeadline" value="${task.deadline || ''}" ${perms.manageProjects ? '' : 'disabled'}></div>
-                <div class="form-group"><label>Assigned To</label><select id="mTAssignee" ${perms.manageProjects ? '' : 'disabled'}>${assigneeOptions}</select></div>
-                <div class="form-group"><label>Dependencies</label><select id="mTDependencies" multiple size="4" ${perms.manageProjects ? '' : 'disabled'}>${dependencyOptions}</select></div>
+                <div class="form-group"><label>Task Deadline</label><input type="date" id="mTDeadline" value="${task.deadline || ''}" ${perms.manageProjects || perms.assignTasks ? '' : 'disabled'}></div>
+                <div class="form-group"><label>Assigned To</label><select id="mTAssignee" ${perms.manageProjects || perms.assignTasks ? '' : 'disabled'}>${assigneeOptions}</select></div>
+                <div class="form-group"><label>Dependencies</label><select id="mTDependencies" multiple size="4" ${perms.manageProjects || perms.assignTasks ? '' : 'disabled'}>${dependencyOptions}</select></div>
                 <div class="form-group"><label>Open Blockers</label><textarea id="mTBlockers" placeholder="One blocker per line">${blockersText}</textarea></div>
                 <div class="form-group"><label>Task Comments</label><textarea id="mTComment">${task.comment || ''}</textarea></div>
             `;
             ui.openModal("Edit Task", html, async () => {
                 const previousAssignee = task.assignedTo;
                 const previousStatus = task.status;
-                if (perms.manageProjects) {
+                if (perms.manageProjects || perms.assignTasks) {
                     task.title = document.getElementById('mTTitle').value.trim() || task.title;
                     task.deadline = document.getElementById('mTDeadline').value;
                     task.assignedTo = document.getElementById('mTAssignee').value;
@@ -767,6 +910,10 @@ const App = (() => {
             const perms = FreelaAuth.getPermissions();
             const assigneeOptions = `<option value="">(Unassigned)</option>` + _users.map(u => `<option value="${u.id}">${u.fullName} (${FreelaAuth.roleLabel(u.role)})</option>`).join('');
             if (ui.dom.tAssigneeSelect) ui.dom.tAssigneeSelect.innerHTML = assigneeOptions;
+            const projectOwnerSelect = document.getElementById('pOwner');
+            if (projectOwnerSelect) projectOwnerSelect.innerHTML = `<option value="">Select an owner</option>` + _users.filter(user => user.role === 'owner').map(user => `<option value="${user.id}">${ui.escapeHtml(user.fullName)}</option>`).join('');
+            const projectManagerSelect = document.getElementById('pManager');
+            if (projectManagerSelect) projectManagerSelect.innerHTML = `<option value="">Select a project manager</option>` + _users.filter(user => user.role === 'project_manager').map(user => `<option value="${user.id}">${ui.escapeHtml(user.fullName)}</option>`).join('');
 
             if (_projects.length === 0) {
                 ui.dom.tProjectSelect.innerHTML = '<option value="">(No Projects)</option>';
@@ -916,6 +1063,8 @@ const App = (() => {
 
             const perms = FreelaAuth.getPermissions();
             const currentUser = FreelaAuth.getCurrentUser();
+            const canManageProjectSections = perms.manageProjects || currentUser?.role === 'owner';
+            const canDeleteProject = perms.deleteData || (currentUser?.role === 'project_manager' && p.createdBy === currentUser.id);
             const typeName = p.type || 'Hourly';
             const pStatus = p.status || 'Not Started';
             let pTotalHours = 0;
@@ -933,13 +1082,15 @@ const App = (() => {
                 </div>
             `).join('');
 
-            const decisionsHtml = (p.decisions || []).map(decision => `<div class="communication-item"><strong>${ui.escapeHtml(decision.title)}</strong><span>${ui.escapeHtml(decision.rationale)}</span><small>${ui.escapeHtml(decision.author)} &middot; ${new Date(decision.createdAt).toLocaleString()}</small></div>`).join('') || '<div class="empty-state">No decisions recorded.</div>';
+            const decisionsHtml = (p.decisions || []).map(decision => `<div class="communication-item"><strong>${ui.escapeHtml(decision.title)}</strong><span>${ui.escapeHtml(decision.rationale)}</span><small>${ui.escapeHtml(decision.author)} &middot; ${new Date(decision.createdAt).toLocaleString()}</small>${canManageProjectSections ? `<button class="btn-secondary btn-sm" onclick="App.state.editDecision('${p.id}', '${decision.id}')">Edit</button>` : ''}</div>`).join('') || '<div class="empty-state">No decisions recorded.</div>';
             const meetingNotesHtml = (p.meetingNotes || []).map(note => `<div class="communication-item"><strong>${ui.escapeHtml(note.subject)}</strong><span>${ui.escapeHtml(note.notes)}</span><small>${ui.escapeHtml(note.author)} &middot; ${new Date(note.createdAt).toLocaleString()}</small></div>`).join('') || '<div class="empty-state">No meeting notes recorded.</div>';
-            const attachmentsHtml = (p.attachments || []).map(file => `<div class="communication-item attachment-item"><a href="${ui.escapeHtml(file.url)}" target="_blank" rel="noopener noreferrer">${ui.escapeHtml(file.name)}</a><small>${ui.escapeHtml(file.uploadedBy)} &middot; ${new Date(file.createdAt).toLocaleString()}</small></div>`).join('') || '<div class="empty-state">No attachments linked.</div>';
-            const projectBudget = Number(p.budget || 0);
+            const attachmentsHtml = (p.attachments || []).map(file => `<div class="communication-item attachment-item"><a href="${ui.escapeHtml(file.url)}" target="_blank" rel="noopener noreferrer">${ui.escapeHtml(file.name)}</a><small>${ui.escapeHtml(file.uploadedBy)} &middot; ${new Date(file.createdAt).toLocaleString()}</small>${canManageProjectSections ? `<button class="btn-secondary btn-sm" onclick="App.state.editAttachment('${p.id}', '${file.id}')">Edit</button>` : ''}</div>`).join('') || '<div class="empty-state">No attachments linked.</div>';
+            const projectBudget = (p.invoices || [])
+                .filter(invoice => ['Approved', 'Collected'].includes(invoice.status))
+                .reduce((sum, invoice) => sum + Number(invoice.amount || 0), 0);
             const projectRate = Number(p.hourlyRate || 0);
-            const paidValue = (p.invoices || []).filter(i => i.status === 'Paid').reduce((sum, item) => sum + Number(item.amount || 0), 0);
-            const pendingValue = (p.invoices || []).filter(i => i.status !== 'Paid').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            const paidValue = (p.invoices || []).filter(i => i.status === 'Collected').reduce((sum, item) => sum + Number(item.amount || 0), 0);
+            const pendingValue = (p.invoices || []).filter(i => !['Collected', 'Rejected'].includes(i.status)).reduce((sum, item) => sum + Number(item.amount || 0), 0);
             const milestoneValue = (p.milestones || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
             const milestonesHtml = (p.milestones || []).map(milestone => `
                 <div class="finance-item">
@@ -953,11 +1104,12 @@ const App = (() => {
             `).join('') || '<div class="empty-state">No milestones planned.</div>';
             const invoicesHtml = (p.invoices || []).map(invoice => `
                 <div class="finance-item">
-                    <div class="finance-item-row"><strong>${ui.escapeHtml(invoice.invoiceNumber)}</strong><span class="sdlc-status ${invoice.status === 'Paid' ? 'sdlc-passed' : invoice.status === 'Pending' ? 'approval-pending' : 'sdlc-open'}">${ui.escapeHtml(invoice.status)}</span></div>
-                    <div class="finance-item-row"><small>${ui.escapeHtml(invoice.dueDate || 'No due date')}</small><small>${ui.formatMoney(invoice.amount, p.currency || 'USD')}</small></div>
+                    <div class="finance-item-row"><strong>${ui.escapeHtml(invoice.invoiceNumber)}</strong><span class="sdlc-status ${['Collected', 'Approved'].includes(invoice.status) ? 'sdlc-passed' : invoice.status === 'Pending' ? 'approval-pending' : 'sdlc-bug'}">${ui.escapeHtml(invoice.status)}</span></div>
+                    <div class="finance-item-row"><small>${ui.escapeHtml(invoice.dueDate || 'No due date')} &middot; ${ui.escapeHtml(invoice.submittedBy || 'Unknown submitter')}</small><small>${ui.formatMoney(invoice.amount, p.currency || 'USD')}</small></div>
+                    ${invoice.milestoneId ? `<small>Milestone: ${ui.escapeHtml((p.milestones || []).find(item => item.id === invoice.milestoneId)?.title || invoice.milestoneId)}</small>` : '<small>No milestone linked</small>'}
                     <div class="task-ctrls">
-                        <button class="btn-secondary btn-sm" onclick="App.state.updateInvoiceStatus('${p.id}', '${invoice.id}', 'Pending')">Pending</button>
-                        <button class="btn-primary btn-sm" onclick="App.state.updateInvoiceStatus('${p.id}', '${invoice.id}', 'Paid')">Paid</button>
+                        ${perms.approveInvoices && invoice.status === 'Pending' ? `<button class="btn-primary btn-sm" onclick="App.state.updateInvoiceStatus('${p.id}', '${invoice.id}', 'Approved')">Approve</button><button class="btn-danger btn-sm" onclick="App.state.updateInvoiceStatus('${p.id}', '${invoice.id}', 'Rejected')">Reject</button>` : ''}
+                        ${perms.submitInvoices && invoice.status === 'Approved' && invoice.submittedById === currentUser.id ? `<button class="btn-primary btn-sm" onclick="App.state.updateInvoiceStatus('${p.id}', '${invoice.id}', 'Collected')">Confirm collected</button>` : ''}
                     </div>
                 </div>
             `).join('') || '<div class="empty-state">No billing records.</div>';
@@ -1027,7 +1179,7 @@ const App = (() => {
                         <div style="display:flex; gap:8px;">
                             ${perms.manageProjects ? `<button class="btn-secondary btn-sm" onclick="App.state.editProject('${p.id}')">Edit Project</button>` : ''}
                             <button class="btn-primary btn-sm" onclick="App.reports.generateHtmlReport('${p.id}')">Generate Report</button>
-                            ${perms.deleteData ? `<button class="btn-danger btn-sm" onclick="App.state.deleteProject('${p.id}')">Delete</button>` : ''}
+                            ${canDeleteProject ? `<button class="btn-danger btn-sm" onclick="App.state.deleteProject('${p.id}')">Delete</button>` : ''}
                         </div>
                     </div>
 
@@ -1051,7 +1203,7 @@ const App = (() => {
 
                     <div class="communication-grid finance-grid">
                         <div class="comment-history-panel"><div class="comment-history-title">Project Finance <button class="btn-primary btn-sm" onclick="App.state.addMilestone('${p.id}')">Add milestone</button></div><div class="communication-list">${milestonesHtml}</div></div>
-                        <div class="comment-history-panel"><div class="comment-history-title">Invoices <button class="btn-primary btn-sm" onclick="App.state.addInvoice('${p.id}')">Add invoice</button></div><div class="communication-list">${invoicesHtml}</div></div>
+                        <div class="comment-history-panel"><div class="comment-history-title">Invoices ${perms.submitInvoices ? `<button class="btn-primary btn-sm" onclick="App.state.addInvoice('${p.id}')">Submit invoice</button>` : ''}</div><div class="communication-list">${invoicesHtml}</div></div>
                         <div class="comment-history-panel"><div class="comment-history-title">Finance Snapshot</div><div class="communication-list"><div class="finance-item"><div class="finance-item-row"><strong>Budget</strong><span>${ui.formatMoney(projectBudget, p.currency || 'USD')}</span></div><div class="finance-item-row"><small>Hourly / rate</small><small>${ui.formatMoney(projectRate, p.currency || 'USD')}/hr</small></div></div><div class="finance-item"><div class="finance-item-row"><strong>Collected</strong><span>${ui.formatMoney(paidValue, p.currency || 'USD')}</span></div><div class="finance-item-row"><small>Outstanding</small><small>${ui.formatMoney(pendingValue, p.currency || 'USD')}</small></div></div><div class="finance-item"><div class="finance-item-row"><strong>Milestone value</strong><span>${ui.formatMoney(milestoneValue, p.currency || 'USD')}</span></div><div class="finance-item-row"><small>Portal status</small><small>${ui.escapeHtml(p.clientPortalStatus || 'Open')}</small></div></div></div></div>
                     </div>
 
@@ -1067,14 +1219,14 @@ const App = (() => {
                     </div>
 
                     <div class="communication-grid">
-                        <div class="comment-history-panel"><div class="comment-history-title">Decisions <button class="btn-primary btn-sm" onclick="App.state.addDecision('${p.id}')">Add</button></div><div class="communication-list">${decisionsHtml}</div></div>
+                        <div class="comment-history-panel"><div class="comment-history-title">Decisions ${canManageProjectSections ? `<button class="btn-primary btn-sm" onclick="App.state.addDecision('${p.id}')">Add</button>` : ''}</div><div class="communication-list">${decisionsHtml}</div></div>
                         <div class="comment-history-panel"><div class="comment-history-title">Meeting Notes <button class="btn-primary btn-sm" onclick="App.state.addMeetingNote('${p.id}')">Add</button></div><div class="communication-list">${meetingNotesHtml}</div></div>
-                        <div class="comment-history-panel"><div class="comment-history-title">Attachments <button class="btn-primary btn-sm" onclick="App.state.addAttachmentLink('${p.id}')">Link</button></div><div class="communication-list">${attachmentsHtml}</div></div>
+                        <div class="comment-history-panel"><div class="comment-history-title">Attachments ${canManageProjectSections ? `<button class="btn-primary btn-sm" onclick="App.state.addAttachmentLink('${p.id}')">Link</button>` : ''}</div><div class="communication-list">${attachmentsHtml}</div></div>
                     </div>
 
                     <div class="communication-grid sdlc-project-grid">
-                        <div class="comment-history-panel"><div class="comment-history-title">Approvals <button class="btn-primary btn-sm" onclick="App.state.addApproval('${p.id}')">Request</button></div><div class="communication-list">${(p.approvals || []).map(item => `<div class="communication-item"><strong>${ui.escapeHtml(item.subject)}</strong><span class="sdlc-status approval-${item.status.toLowerCase()}">${ui.escapeHtml(item.status)}</span><small>Requested by ${ui.escapeHtml(item.requestedBy)}</small>${item.status === 'Pending' && perms.manageProjects ? `<div><button class="btn-primary btn-sm" onclick="App.state.decideApproval('${p.id}', '${item.id}', 'Approved')">Approve</button> <button class="btn-danger btn-sm" onclick="App.state.decideApproval('${p.id}', '${item.id}', 'Rejected')">Reject</button></div>` : ''}</div>`).join('') || '<div class="empty-state">No approvals.</div>'}</div></div>
-                        <div class="comment-history-panel"><div class="comment-history-title">Releases <button class="btn-primary btn-sm" onclick="App.state.addRelease('${p.id}')">Plan</button></div><div class="communication-list">${(p.releases || []).map(item => `<div class="communication-item"><strong>${ui.escapeHtml(item.version)}</strong><span>${ui.escapeHtml(item.notes)}</span><small>${ui.escapeHtml(item.status)} &middot; ${ui.escapeHtml(item.createdBy)}</small></div>`).join('') || '<div class="empty-state">No releases planned.</div>'}</div></div>
+                        <div class="comment-history-panel"><div class="comment-history-title">Approvals ${canManageProjectSections ? `<button class="btn-primary btn-sm" onclick="App.state.addApproval('${p.id}')">Request</button>` : ''}</div><div class="communication-list">${(p.approvals || []).map(item => `<div class="communication-item"><strong>${ui.escapeHtml(item.subject)}</strong><span class="sdlc-status approval-${item.status.toLowerCase()}">${ui.escapeHtml(item.status)}</span><small>Requested by ${ui.escapeHtml(item.requestedBy)}</small>${canManageProjectSections ? `<button class="btn-secondary btn-sm" onclick="App.state.editApproval('${p.id}', '${item.id}')">Edit</button>` : ''}${item.status === 'Pending' && perms.manageProjects ? `<div><button class="btn-primary btn-sm" onclick="App.state.decideApproval('${p.id}', '${item.id}', 'Approved')">Approve</button> <button class="btn-danger btn-sm" onclick="App.state.decideApproval('${p.id}', '${item.id}', 'Rejected')">Reject</button></div>` : ''}</div>`).join('') || '<div class="empty-state">No approvals.</div>'}</div></div>
+                        <div class="comment-history-panel"><div class="comment-history-title">Releases ${canManageProjectSections ? `<button class="btn-primary btn-sm" onclick="App.state.addRelease('${p.id}')">Plan</button>` : ''}</div><div class="communication-list">${(p.releases || []).map(item => `<div class="communication-item"><strong>${ui.escapeHtml(item.version)}</strong><span>${ui.escapeHtml(item.notes)}</span><small>${ui.escapeHtml(item.status)} &middot; ${ui.escapeHtml(item.createdBy)}</small>${canManageProjectSections ? `<button class="btn-secondary btn-sm" onclick="App.state.editRelease('${p.id}', '${item.id}')">Edit</button>` : ''}</div>`).join('') || '<div class="empty-state">No releases planned.</div>'}</div></div>
                     </div>
 
                     <div class="task-list">
@@ -1087,6 +1239,10 @@ const App = (() => {
         },
 
         exportData: async () => {
+            if (FreelaAuth.getCurrentUser()?.role !== 'admin') {
+                ui.showNotify("Only Admin users can export the database.", "error");
+                return;
+            }
             const users = await FreelaDB.getAll("users");
             const projects = await FreelaDB.getAll("projects");
             const exportTime = new Date().toISOString();
@@ -1100,8 +1256,7 @@ const App = (() => {
         },
 
         importData: (event) => {
-            const perms = FreelaAuth.getPermissions();
-            if (!perms.deleteData) { ui.showNotify("You do not have permission to import data.", "error"); return; }
+            if (FreelaAuth.getCurrentUser()?.role !== 'admin') { ui.showNotify("Only Admin users can import the database.", "error"); return; }
             const file = event.target.files[0];
             if (!file) return;
             const reader = new FileReader();
@@ -1145,8 +1300,11 @@ const App = (() => {
             const pStatus = document.getElementById('pStatus').value;
             const pDeadline = document.getElementById('pDeadline').value;
             const pComment = document.getElementById('pComment').value.trim();
-            if (!pName || !pClient) return;
-            state.addProject({ name: pName, client: pClient, type: pType, status: pStatus, deadline: pDeadline, initialComment: pComment });
+            const pOwner = document.getElementById('pOwner').value;
+            const pManager = document.getElementById('pManager').value;
+            const pCurrency = document.getElementById('pCurrency').value;
+            if (!pName || !pClient || !pOwner || !pManager || !pCurrency) return;
+            state.addProject({ name: pName, client: pClient, type: pType, status: pStatus, deadline: pDeadline, initialComment: pComment, assignedOwnerId: pOwner, assignedManagerId: pManager, currency: pCurrency });
             ui.dom.projectForm.reset();
         },
 
@@ -1161,7 +1319,7 @@ const App = (() => {
 
         createTask: (e) => {
             e.preventDefault();
-            if (!FreelaAuth.getPermissions().manageProjects) { ui.showNotify("You do not have permission to create tasks.", "error"); return; }
+            if (!FreelaAuth.getPermissions().manageProjects && !FreelaAuth.getPermissions().assignTasks) { ui.showNotify("You do not have permission to create tasks.", "error"); return; }
             const pid = ui.dom.tProjectSelect.value;
             const title = document.getElementById('tTitle').value.trim();
             const status = document.getElementById('tStatus').value;

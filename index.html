@@ -31,7 +31,7 @@
         <div class="login-hint">
             Demo accounts (username / password):<br>
             admin / Admin@123 &bull; owner / Owner@123 &bull; pmanager / PManager@123<br>
-            powner / POwner@123 &bull; developer / Dev@123 &bull; tester / Tester@123
+            developer / Dev@123 &bull; tester / Tester@123
         </div>
     </div>
 </div>
@@ -49,8 +49,8 @@
         <div class="global-actions">
             <div class="user-chip" id="header_user_chip"></div>
             <button class="btn-header notification-button" onclick="App.state.showNotifications()">Notifications <span id="notification_count" class="notification-count" style="display:none;">0</span></button>
-            <button class="btn-header" onclick="App.state.exportData()">Export Database</button>
-            <button class="btn-header" onclick="document.getElementById('importFile').click()">Import</button>
+            <button class="btn-header" id="exportDataBtn" onclick="App.state.exportData()">Export Database</button>
+            <button class="btn-header" id="importDataBtn" onclick="document.getElementById('importFile').click()">Import</button>
             <button class="btn-danger" id="resetDbBtn" onclick="App.state.resetDatabase()">Reset Data</button>
             <input type="file" id="importFile" style="display:none" onchange="App.state.importData(event)">
             <button class="btn-header" onclick="handleLogout()">Log Out</button>
@@ -75,6 +75,25 @@
                     <div class="form-group">
                         <label for="pClient">Client Name</label>
                         <input type="text" id="pClient" placeholder="e.g. Global Tech Solutions" required maxlength="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="pOwner">Assigned Owner</label>
+                        <select id="pOwner" required><option value="">Select an owner</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pManager">Assigned Project Manager</label>
+                        <select id="pManager" required><option value="">Select a project manager</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pCurrency">Currency</label>
+                        <select id="pCurrency" required>
+                            <option value="USD">USD - US Dollar</option>
+                            <option value="EGP">EGP - Egyptian Pound</option>
+                            <option value="EUR">EUR - Euro</option>
+                            <option value="GBP">GBP - British Pound</option>
+                            <option value="SAR">SAR - Saudi Riyal</option>
+                            <option value="AED">AED - UAE Dirham</option>
+                        </select>
                     </div>
                     <div class="form-row">
                         <div class="form-group">

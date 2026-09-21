@@ -14,31 +14,38 @@ const FreelaAuth = (() => {
             manageProjects: true,
             manageTasks: true,
             manageOwnTasksOnly: false,
-            deleteData: true
+            deleteData: true,
+            monitorAllProjects: true,
+            assignTasks: true,
+            addComments: true,
+            approveInvoices: true,
+            submitInvoices: true
         },
         owner: {
             label: "Owner",
+            manageUsers: false,
+            manageProjects: false,
+            manageTasks: false,
+            manageOwnTasksOnly: false,
+            deleteData: false,
+            monitorAllProjects: true,
+            assignTasks: true,
+            addComments: true,
+            approveInvoices: true,
+            submitInvoices: true
+        },
+        project_manager: {
+            label: "Project Manager",
             manageUsers: true,
             manageProjects: true,
             manageTasks: true,
             manageOwnTasksOnly: false,
-            deleteData: true
-        },
-        project_manager: {
-            label: "Project Manager",
-            manageUsers: false,
-            manageProjects: true,
-            manageTasks: true,
-            manageOwnTasksOnly: false,
-            deleteData: true
-        },
-        product_owner: {
-            label: "Product Owner",
-            manageUsers: false,
-            manageProjects: true,
-            manageTasks: true,
-            manageOwnTasksOnly: false,
-            deleteData: false
+            deleteData: false,
+            monitorAllProjects: true,
+            assignTasks: true,
+            addComments: true,
+            approveInvoices: false,
+            submitInvoices: true
         },
         developer: {
             label: "Developer",
@@ -62,7 +69,6 @@ const FreelaAuth = (() => {
         { username: "admin", fullName: "System Administrator", role: "admin", password: "Admin@123" },
         { username: "owner", fullName: "Business Owner", role: "owner", password: "Owner@123" },
         { username: "pmanager", fullName: "Project Manager", role: "project_manager", password: "PManager@123" },
-        { username: "powner", fullName: "Product Owner", role: "product_owner", password: "POwner@123" },
         { username: "developer", fullName: "Developer", role: "developer", password: "Dev@123" },
         { username: "tester", fullName: "QA Tester", role: "tester", password: "Tester@123" }
     ];
@@ -77,7 +83,11 @@ const FreelaAuth = (() => {
 
     async function seedDefaultUsers() {
         const existing = await FreelaDB.getAll("users");
-        if (existing.length > 0) return;
+        const activeExisting = existing.filter(item => item.role !== "product_owner");
+        for (const user of existing.filter(item => item.role === "product_owner")) {
+            await FreelaDB.remove("users", user.id);
+        }
+        if (activeExisting.length > 0) return;
 
         let n = 0;
         for (const u of DEFAULT_USERS) {
@@ -199,6 +209,11 @@ const FreelaAuth = (() => {
     }
 
     async function createUser({ username, fullName, role, password }) {
+        if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
+        if (!ROLES[role]) return { ok: false, msg: "Invalid user role." };
+        if (_currentUser?.role === "project_manager" && role === "admin") {
+            return { ok: false, msg: "Project Managers cannot create Admin accounts." };
+        }
         const users = await FreelaDB.getAll("users");
         if (users.some(u => u.username.toLowerCase() === username.trim().toLowerCase())) {
             return { ok: false, msg: "Username already exists." };
@@ -211,8 +226,13 @@ const FreelaAuth = (() => {
     }
 
     async function updateUser(id, { fullName, role, password, active }) {
+        if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
         const user = await FreelaDB.get("users", id);
         if (!user) return { ok: false, msg: "User not found." };
+        if (role !== undefined && !ROLES[role]) return { ok: false, msg: "Invalid user role." };
+        if (_currentUser?.role === "project_manager" && (user.role === "admin" || role === "admin")) {
+            return { ok: false, msg: "Project Managers cannot edit Admin accounts." };
+        }
         if (fullName !== undefined) user.fullName = fullName.trim();
         if (role !== undefined) user.role = role;
         if (active !== undefined) user.active = active;
@@ -223,7 +243,12 @@ const FreelaAuth = (() => {
     }
 
     async function deleteUser(id) {
+        if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
         if (_currentUser && _currentUser.id === id) return { ok: false, msg: "You cannot delete the account you are logged in with." };
+        const user = await FreelaDB.get("users", id);
+        if (_currentUser?.role === "project_manager" && user?.role === "admin") {
+            return { ok: false, msg: "Project Managers cannot delete Admin accounts." };
+        }
         await FreelaDB.remove("users", id);
         return { ok: true };
     }

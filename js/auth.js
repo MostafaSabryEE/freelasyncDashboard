@@ -131,54 +131,9 @@ const FreelaAuth = (() => {
         sessionStorage.removeItem(SESSION_KEY);
     }
 
-    async function signInWithGitHub() {
-        const supabaseClient = FreelaSupabase && FreelaSupabase.getClient ? FreelaSupabase.getClient() : null;
-        if (!supabaseClient) {
-            return { ok: false, msg: "Supabase is not configured yet. Add the URL and anon key first." };
-        }
-
-        try {
-            const redirectUrl = "https://pmlxghpmfqnehlgsitqe.supabase.co/auth/v1/callback";
-            const { error } = await supabaseClient.auth.signInWithOAuth({
-                provider: 'github',
-                options: {
-                    redirectTo: redirectUrl
-                }
-            });
-
-            if (error) {
-                return { ok: false, msg: error.message || "GitHub sign-in failed." };
-            }
-
-            return { ok: true };
-        } catch (error) {
-            return { ok: false, msg: error.message || "GitHub sign-in could not start." };
-        }
-    }
-
     async function restoreSession() {
         const raw = sessionStorage.getItem(SESSION_KEY);
-        if (!raw) {
-            if (window.supabase && FreelaSupabase && FreelaSupabase.getClient) {
-                const supabaseClient = FreelaSupabase.getClient();
-                if (supabaseClient) {
-                    const { data: { session }, error } = await supabaseClient.auth.getSession();
-                    if (!error && session && session.user) {
-                        _currentUser = {
-                            id: session.user.id,
-                            username: session.user.user_metadata?.user_name || session.user.email || "github-user",
-                            fullName: session.user.user_metadata?.full_name || session.user.user_metadata?.name || "GitHub User",
-                            role: "project_manager",
-                            email: session.user.email || "",
-                            active: true
-                        };
-                        sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: _currentUser.id, username: _currentUser.username }));
-                        return _currentUser;
-                    }
-                }
-            }
-            return null;
-        }
+        if (!raw) return null;
         try {
             const { id } = JSON.parse(raw);
             const user = await FreelaDB.get("users", id);
@@ -254,7 +209,7 @@ const FreelaAuth = (() => {
     }
 
     return {
-        ROLES, seedDefaultUsers, login, logout, signInWithGitHub, restoreSession, getCurrentUser, updateCachedUser,
+        ROLES, seedDefaultUsers, login, logout, restoreSession, getCurrentUser, updateCachedUser,
         getPermissions, roleLabel, createUser, updateUser, deleteUser, sha256
     };
 })();

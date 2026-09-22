@@ -26,7 +26,6 @@
             </div>
             <div class="login-error" id="loginError"></div>
             <button type="submit" class="btn-primary" style="width:100%;">Sign In</button>
-            <button type="button" class="btn-secondary" style="width:100%;" onclick="handleGithubLogin()">Continue with GitHub</button>
         </form>
         <div class="login-hint">
             Demo accounts (username / password):<br>
@@ -257,17 +256,6 @@ function handleLogout() {
     document.getElementById('app_shell').classList.remove('active');
     document.getElementById('login_screen').classList.remove('hidden');
     document.getElementById('loginForm').reset();
-}
-
-async function handleGithubLogin() {
-    const errorBox = document.getElementById('loginError');
-    errorBox.textContent = "";
-    const result = await FreelaAuth.signInWithGitHub();
-    if (!result.ok) {
-        errorBox.textContent = result.msg;
-        return;
-    }
-    errorBox.textContent = "Redirecting to GitHub...";
 }
 
 async function showApp() {

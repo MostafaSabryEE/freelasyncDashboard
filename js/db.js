@@ -16,6 +16,14 @@ const FreelaDB = (() => {
 
     const FALLBACK_KEY = "freelasync_fallback_store_v1";
 
+    function remoteClient() {
+        return typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
+    }
+
+    function remoteReady() {
+        return Boolean(remoteClient());
+    }
+
     function loadFallback() {
         try {
             const raw = localStorage.getItem(FALLBACK_KEY);
@@ -67,6 +75,30 @@ const FreelaDB = (() => {
     }
 
     async function getAll(store) {
+        const client = remoteClient();
+        if (client && store === "users") {
+            const { data, error } = await client.from("app_users").select("*").order("created_at");
+            if (error) throw error;
+            return data.map(user => ({
+                id: user.id,
+                username: user.username,
+                fullName: user.full_name,
+                role: user.role,
+                active: user.active,
+                notifications: user.notifications || [],
+                createdAt: user.created_at
+            }));
+        }
+        if (client && store === "projects") {
+            const { data, error } = await client.from("app_projects").select("data").order("id");
+            if (error) throw error;
+            return data.map(row => row.data);
+        }
+        if (client && store === "meta") {
+            const { data, error } = await client.from("app_meta").select("key,value");
+            if (error) throw error;
+            return data;
+        }
         if (_fallbackMode) return [..._fallbackData[store]];
         const db = await open();
         if (!db) { loadFallback(); return [..._fallbackData[store]]; }
@@ -80,6 +112,22 @@ const FreelaDB = (() => {
     }
 
     async function get(store, key) {
+        const client = remoteClient();
+        if (client && store === "users") {
+            const { data, error } = await client.from("app_users").select("*").eq("id", key).maybeSingle();
+            if (error) throw error;
+            return data ? { id: data.id, username: data.username, fullName: data.full_name, role: data.role, active: data.active, notifications: data.notifications || [], createdAt: data.created_at } : null;
+        }
+        if (client && store === "projects") {
+            const { data, error } = await client.from("app_projects").select("data").eq("id", key).maybeSingle();
+            if (error) throw error;
+            return data ? data.data : null;
+        }
+        if (client && store === "meta") {
+            const { data, error } = await client.from("app_meta").select("key,value").eq("key", key).maybeSingle();
+            if (error) throw error;
+            return data;
+        }
         if (_fallbackMode) return _fallbackData[store].find(r => r.id === key || r.key === key) || null;
         const db = await open();
         if (!db) { loadFallback(); return _fallbackData[store].find(r => r.id === key || r.key === key) || null; }
@@ -93,6 +141,31 @@ const FreelaDB = (() => {
     }
 
     async function put(store, record) {
+        const client = remoteClient();
+        if (client && store === "users") {
+            const { data, error } = await client.from("app_users").update({
+                full_name: record.fullName,
+                role: record.role,
+                active: record.active,
+                notifications: record.notifications || []
+            }).eq("id", record.id).select("*").maybeSingle();
+            if (error) throw error;
+            return data;
+        }
+        if (client && store === "projects") {
+            const { data, error } = await client.from("app_projects").upsert({
+                id: record.id,
+                data: record,
+                updated_by: (await client.auth.getUser()).data.user?.id || null
+            }).select("data").single();
+            if (error) throw error;
+            return data.data;
+        }
+        if (client && store === "meta") {
+            const { data, error } = await client.from("app_meta").upsert({ key: record.key, value: record.value, updated_by: (await client.auth.getUser()).data.user?.id || null }).select("key,value").single();
+            if (error) throw error;
+            return data;
+        }
         if (_fallbackMode) {
             const idField = store === "meta" ? "key" : "id";
             const idx = _fallbackData[store].findIndex(r => r[idField] === record[idField]);
@@ -120,6 +193,22 @@ const FreelaDB = (() => {
     }
 
     async function remove(store, key) {
+        const client = remoteClient();
+        if (client && store === "users") {
+            const { error } = await client.from("app_users").delete().eq("id", key);
+            if (error) throw error;
+            return;
+        }
+        if (client && store === "projects") {
+            const { error } = await client.from("app_projects").delete().eq("id", key);
+            if (error) throw error;
+            return;
+        }
+        if (client && store === "meta") {
+            const { error } = await client.from("app_meta").delete().eq("key", key);
+            if (error) throw error;
+            return;
+        }
         if (_fallbackMode) {
             const idField = store === "meta" ? "key" : "id";
             _fallbackData[store] = _fallbackData[store].filter(r => r[idField] !== key);
@@ -145,6 +234,12 @@ const FreelaDB = (() => {
     }
 
     async function clearAll() {
+        const client = remoteClient();
+        if (client) {
+            const { error } = await client.from("app_projects").delete().neq("id", "__never__");
+            if (error) throw error;
+            return;
+        }
         if (window.indexedDB) {
             await new Promise((resolve) => {
                 const req = indexedDB.deleteDatabase(DB_NAME);
@@ -159,5 +254,16 @@ const FreelaDB = (() => {
         _fallbackData = null;
     }
 
-    return { getAll, get, put, remove, clearAll, STORES };
+    function subscribeChanges(onChange) {
+        const client = remoteClient();
+        if (!client) return () => {};
+        const channel = client.channel("freelasync-dashboard");
+        channel.on("postgres_changes", { event: "*", schema: "public", table: "app_projects" }, onChange);
+        channel.on("postgres_changes", { event: "*", schema: "public", table: "app_users" }, onChange);
+        channel.on("postgres_changes", { event: "*", schema: "public", table: "app_meta" }, onChange);
+        channel.subscribe();
+        return () => client.removeChannel(channel);
+    }
+
+    return { getAll, get, put, remove, clearAll, subscribeChanges, remoteReady, STORES };
 })();

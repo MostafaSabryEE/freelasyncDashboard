@@ -79,11 +79,10 @@ repository:
 
 1. Create a project at [supabase.com](https://supabase.com).
 2. Open **SQL Editor** and run `supabase/schema.sql`.
-3. In Supabase **Project Settings → API**, copy the project URL and the public
-  `anon` key into `js/supabase-config.js`.
+3. Add `SUPABASE_URL` and `SUPABASE_ANON_KEY` as Vercel Production
+   environment variables. The Vercel build script writes them into the static
+   browser configuration.
 4. Never copy the `service_role` key into frontend code or commit it to GitHub.
-5. The next phase will replace local login and browser storage with Supabase
-  Auth and the tables created by this schema.
 
 The schema creates organizations, profiles, memberships, projects, tasks,
 comments, time logs, activity events, decisions, meeting notes, and attachment
@@ -91,6 +90,25 @@ metadata. Row-level security is
 enabled with read policies for authenticated members; write policies will be
 added alongside the application operations so each workflow is authorized at
 the database boundary.
+
+### Shared Supabase workspace setup
+
+The browser UI now uses Supabase Auth and the shared `app_users`,
+`app_projects`, and `app_meta` tables when `SUPABASE_URL` and
+`SUPABASE_ANON_KEY` are configured. Run the complete `supabase/schema.sql`
+file in the SQL Editor, then create the first user in **Authentication →
+Users → Add user**. Promote that user to an administrator in SQL:
+
+```sql
+update public.app_users
+set role = 'admin', active = true
+where id = 'AUTH_USER_UUID';
+```
+
+Replace `AUTH_USER_UUID` with the UUID shown for the Auth user. Additional
+users can be created in Supabase Authentication and assigned a role in
+`app_users`. The in-app Add User form remains available for local mode; a
+browser cannot create Auth users because that requires a server-side secret.
 
 ### Phase 2 local test checklist
 
@@ -138,22 +156,16 @@ Supabase data/auth migration is implemented.
 
 ## 5. Data storage & security notes (read before publishing)
 
-This is a **static site** — there is no backend server, so all data (users,
-projects, tasks, time logs) lives **only in each visitor's own browser**
-(IndexedDB). This means:
+Without Supabase configuration, this is a **static site** and data lives only
+in each visitor's browser (IndexedDB). With Supabase configuration, users,
+projects, tasks, and time logs are stored in the shared Supabase workspace:
 
-- Every visitor gets their own independent, empty database on first visit.
-- Data is **not shared** between different people or devices automatically.
-  Use **Export Database** / **Import** (top-right buttons) to move project
-  data between browsers/computers.
-- Passwords are hashed with SHA-256 client-side, but **anyone who opens the
-  browser DevTools can read the IndexedDB contents**. Do not use this tool
-  for sensitive/confidential data, and do not reuse real-world passwords for
-  the demo accounts.
-- If you need multi-user, server-synced data with real authentication, you
-  would need to add a backend (e.g. Firebase, Supabase, or your own API) —
-  this project intentionally has none so it can be hosted for free on GitHub
-  Pages.
+- Local fallback data is not synchronized with Supabase.
+- Supabase Auth manages passwords; do not use the old demo passwords in shared
+  mode.
+- Row-level security protects the shared tables, but the current compatibility
+  tables represent one shared workspace. Organization-specific isolation can
+  be added when the normalized tables become the primary data model.
 
 ## 6. Run locally
 
@@ -165,6 +177,21 @@ server, for example:
 python -m http.server 8080
 # then browse to http://localhost:8080
 ```
+
+For shared Supabase mode, set `SUPABASE_URL` and `SUPABASE_ANON_KEY` before
+running the Vercel build script. Do not use the Supabase `service_role` key.
+
+### Migrating existing browser data
+
+1. Before enabling Supabase, sign in as the local admin and click **Export
+  Database**.
+2. Configure Supabase and deploy the updated site.
+3. Create the first Auth user, promote it to `admin` using the SQL above, and
+  sign in with that email.
+4. Click **Import** and select the exported JSON backup. Projects and their
+  nested tasks, comments, logs, and operations data will be uploaded to the
+  shared workspace. Local password hashes are intentionally not imported;
+  create users through Supabase Authentication.
 
 ## 7. Publish on GitHub Pages — step by step
 

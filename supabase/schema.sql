@@ -350,3 +350,128 @@ $$;
 create or replace trigger on_auth_user_created
     after insert on auth.users
     for each row execute procedure public.handle_new_user();
+
+-- FreelaSync browser-compatible shared workspace tables.
+-- These preserve the current nested project JSON shape while the UI is
+-- migrated incrementally to the normalized tables above.
+create table if not exists public.app_users (
+    id uuid primary key references auth.users(id) on delete cascade,
+    username text not null unique,
+    full_name text not null,
+    role public.member_role not null default 'developer',
+    active boolean not null default true,
+    notifications jsonb not null default '[]'::jsonb,
+    created_at timestamptz not null default now()
+);
+
+create table if not exists public.app_projects (
+    id text primary key,
+    data jsonb not null,
+    updated_by uuid not null references auth.users(id),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table if not exists public.app_meta (
+    key text primary key,
+    value jsonb not null,
+    updated_by uuid not null references auth.users(id),
+    updated_at timestamptz not null default now()
+);
+
+alter table public.app_users enable row level security;
+alter table public.app_projects enable row level security;
+alter table public.app_meta enable row level security;
+
+create or replace function public.is_app_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select exists (
+        select 1 from public.app_users
+        where id = auth.uid() and role = 'admin' and active = true
+    );
+$$;
+
+create policy "Authenticated users can read app users"
+    on public.app_users for select to authenticated
+    using (active = true or id = auth.uid() or public.is_app_admin());
+
+create policy "Users can update their own app profile"
+    on public.app_users for update to authenticated
+    using (id = auth.uid() or public.is_app_admin())
+    with check (id = auth.uid() or public.is_app_admin());
+
+create policy "Admins can delete app users"
+    on public.app_users for delete to authenticated
+    using (public.is_app_admin() and id <> auth.uid());
+
+create policy "Authenticated users can read app projects"
+    on public.app_projects for select to authenticated
+    using (true);
+
+create policy "Authenticated users can create app projects"
+    on public.app_projects for insert to authenticated
+    with check (updated_by = auth.uid());
+
+create policy "Authenticated users can update app projects"
+    on public.app_projects for update to authenticated
+    using (true)
+    with check (updated_by = auth.uid());
+
+create policy "Admins can delete app projects"
+    on public.app_projects for delete to authenticated
+    using (public.is_app_admin());
+
+create policy "Authenticated users can read app metadata"
+    on public.app_meta for select to authenticated
+    using (true);
+
+create policy "Authenticated users can write app metadata"
+    on public.app_meta for insert to authenticated
+    with check (updated_by = auth.uid());
+
+create policy "Authenticated users can update app metadata"
+    on public.app_meta for update to authenticated
+    using (true)
+    with check (updated_by = auth.uid());
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    insert into public.profiles (id, full_name)
+    values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', new.email))
+    on conflict (id) do update set full_name = excluded.full_name;
+
+    insert into public.app_users (id, username, full_name, role)
+    values (
+        new.id,
+        coalesce(new.raw_user_meta_data ->> 'username', split_part(new.email, '@', 1)),
+        coalesce(new.raw_user_meta_data ->> 'full_name', new.email),
+        'developer'
+    )
+    on conflict (id) do nothing;
+    return new;
+end;
+$$;
+
+do $$
+begin
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'app_users') then
+        alter publication supabase_realtime add table public.app_users;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'app_projects') then
+        alter publication supabase_realtime add table public.app_projects;
+    end if;
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and tablename = 'app_meta') then
+        alter publication supabase_realtime add table public.app_meta;
+    end if;
+end;
+$$;

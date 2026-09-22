@@ -15,6 +15,7 @@ const App = (() => {
     let _activeProjectId = null;
     let _portfolioView = "list";
     let _filters = { search: "", status: "all", priority: "all", assignee: "all" };
+    let _unsubscribeRealtime = null;
 
     const ui = {
         dom: {},
@@ -165,6 +166,14 @@ const App = (() => {
             await state.reloadUsers();
             state.syncDropdowns();
             state.refreshDashboard();
+            if (!_unsubscribeRealtime && FreelaDB.remoteReady()) {
+                _unsubscribeRealtime = FreelaDB.subscribeChanges(async () => {
+                    await state.reloadProjects();
+                    await state.reloadUsers();
+                    state.syncDropdowns();
+                    state.refreshDashboard();
+                });
+            }
         },
 
         reloadProjects: async () => {

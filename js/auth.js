@@ -82,6 +82,7 @@ const FreelaAuth = (() => {
     }
 
     async function seedDefaultUsers() {
+        if (FreelaDB.remoteReady()) return;
         const existing = await FreelaDB.getAll("users");
         const activeExisting = existing.filter(item => item.role !== "product_owner");
         for (const user of existing.filter(item => item.role === "product_owner")) {
@@ -114,6 +115,20 @@ const FreelaAuth = (() => {
     }
 
     async function login(username, password) {
+        const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
+        if (client) {
+            const email = username.trim();
+            if (!email.includes("@")) return { ok: false, msg: "Enter the email address used for your Supabase account." };
+            const { data, error } = await client.auth.signInWithPassword({ email, password });
+            if (error) return { ok: false, msg: error.message };
+            const { data: profile, error: profileError } = await client.from("app_users").select("*").eq("id", data.user.id).single();
+            if (profileError || !profile || profile.active === false) {
+                await client.auth.signOut();
+                return { ok: false, msg: "Your account profile is not active yet." };
+            }
+            _currentUser = { id: profile.id, username: profile.username, fullName: profile.full_name, role: profile.role, active: profile.active, notifications: profile.notifications || [], createdAt: profile.created_at };
+            return { ok: true, user: _currentUser };
+        }
         const users = await FreelaDB.getAll("users");
         const user = users.find(u => u.username.toLowerCase() === username.trim().toLowerCase() && u.active !== false);
         if (!user) return { ok: false, msg: "Invalid username or password." };
@@ -126,12 +141,23 @@ const FreelaAuth = (() => {
         return { ok: true, user };
     }
 
-    function logout() {
+    async function logout() {
         _currentUser = null;
         sessionStorage.removeItem(SESSION_KEY);
+        const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
+        if (client) await client.auth.signOut();
     }
 
     async function restoreSession() {
+        const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
+        if (client) {
+            const { data } = await client.auth.getSession();
+            if (!data.session) return null;
+            const { data: profile } = await client.from("app_users").select("*").eq("id", data.session.user.id).maybeSingle();
+            if (!profile || profile.active === false) return null;
+            _currentUser = { id: profile.id, username: profile.username, fullName: profile.full_name, role: profile.role, active: profile.active, notifications: profile.notifications || [], createdAt: profile.created_at };
+            return _currentUser;
+        }
         const raw = sessionStorage.getItem(SESSION_KEY);
         if (!raw) return null;
         try {
@@ -165,6 +191,8 @@ const FreelaAuth = (() => {
 
     async function createUser({ username, fullName, role, password }) {
         if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
+        const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
+        if (client) return { ok: false, msg: "Create Supabase users from Authentication, then set their role in app_users." };
         if (!ROLES[role]) return { ok: false, msg: "Invalid user role." };
         if (_currentUser?.role === "project_manager" && role === "admin") {
             return { ok: false, msg: "Project Managers cannot create Admin accounts." };
@@ -182,6 +210,14 @@ const FreelaAuth = (() => {
 
     async function updateUser(id, { fullName, role, password, active }) {
         if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
+        const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
+        if (client) {
+            const { data, error } = await client.from("app_users").update({ full_name: fullName, role, active }).eq("id", id).select("*").single();
+            if (error) return { ok: false, msg: error.message };
+            const user = { id: data.id, username: data.username, fullName: data.full_name, role: data.role, active: data.active, notifications: data.notifications || [], createdAt: data.created_at };
+            if (_currentUser?.id === id) _currentUser = user;
+            return { ok: true, user };
+        }
         const user = await FreelaDB.get("users", id);
         if (!user) return { ok: false, msg: "User not found." };
         if (role !== undefined && !ROLES[role]) return { ok: false, msg: "Invalid user role." };
@@ -200,6 +236,11 @@ const FreelaAuth = (() => {
     async function deleteUser(id) {
         if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
         if (_currentUser && _currentUser.id === id) return { ok: false, msg: "You cannot delete the account you are logged in with." };
+        const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
+        if (client) {
+            const { error } = await client.from("app_users").delete().eq("id", id);
+            return error ? { ok: false, msg: error.message } : { ok: true };
+        }
         const user = await FreelaDB.get("users", id);
         if (_currentUser?.role === "project_manager" && user?.role === "admin") {
             return { ok: false, msg: "Project Managers cannot delete Admin accounts." };

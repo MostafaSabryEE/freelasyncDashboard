@@ -189,10 +189,31 @@ const FreelaAuth = (() => {
         return (ROLES[roleKey] && ROLES[roleKey].label) || roleKey;
     }
 
+    async function invokeAdminFunction(name, body) {
+        const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
+        if (!client) return null;
+        const { data, error } = await client.functions.invoke(name, { body });
+        if (error) {
+            let message = error.message || "Request failed.";
+            if (error.context) {
+                try {
+                    const details = await error.context.json();
+                    message = details.error || message;
+                } catch (e) { /* keep the original message */ }
+            }
+            return { ok: false, msg: message };
+        }
+        return { ok: true, user: data?.user };
+    }
+
     async function createUser({ username, fullName, role, password }) {
         if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
         const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
-        if (client) return { ok: false, msg: "Create Supabase users from Authentication, then set their role in app_users." };
+        if (client) {
+            if (_currentUser?.role !== "admin") return { ok: false, msg: "Only Admin users can create Supabase accounts." };
+            if (!ROLES[role]) return { ok: false, msg: "Invalid user role." };
+            return invokeAdminFunction("create-user", { email: username, username, fullName, role, password });
+        }
         if (!ROLES[role]) return { ok: false, msg: "Invalid user role." };
         if (_currentUser?.role === "project_manager" && role === "admin") {
             return { ok: false, msg: "Project Managers cannot create Admin accounts." };
@@ -212,8 +233,11 @@ const FreelaAuth = (() => {
         if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
         const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
         if (client) {
-            const { data, error } = await client.from("app_users").update({ full_name: fullName, role, active }).eq("id", id).select("*").single();
-            if (error) return { ok: false, msg: error.message };
+            if (_currentUser?.role !== "admin") return { ok: false, msg: "Only Admin users can update Supabase accounts." };
+            if (!ROLES[role]) return { ok: false, msg: "Invalid user role." };
+            const result = await invokeAdminFunction("update-user", { userId: id, fullName, role, password, active });
+            if (!result?.ok) return result || { ok: false, msg: "Request failed." };
+            const data = result.user;
             const user = { id: data.id, username: data.username, fullName: data.full_name, role: data.role, active: data.active, notifications: data.notifications || [], createdAt: data.created_at };
             if (_currentUser?.id === id) _currentUser = user;
             return { ok: true, user };

@@ -45,6 +45,7 @@ const FreelaUsers = (() => {
         const roleOptions = Object.keys(FreelaAuth.ROLES)
             .filter(key => !(currentUser?.role === "project_manager" && key === "admin"))
             .map(key => `<option value="${key}">${FreelaAuth.ROLES[key].label}</option>`).join("");
+        const remoteMode = FreelaDB.remoteReady();
 
         dom.panel.innerHTML = `
             <div class="panel-header">
@@ -52,7 +53,7 @@ const FreelaUsers = (() => {
                 <span style="font-size:0.75rem; color:var(--text-muted);">${_users.length} accounts</span>
             </div>
             <form id="newUserForm" class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr auto; align-items:end;">
-                <div class="form-group"><label>Username</label><input type="text" id="nuUsername" required maxlength="40"></div>
+                <div class="form-group"><label>${remoteMode ? "Email" : "Username"}</label><input type="${remoteMode ? "email" : "text"}" id="nuUsername" required maxlength="120"></div>
                 <div class="form-group"><label>Full Name</label><input type="text" id="nuFullName" required maxlength="80"></div>
                 <div class="form-group"><label>Role</label><select id="nuRole">${roleOptions}</select></div>
                 <div class="form-group"><label>Password</label><input type="password" id="nuPassword" required minlength="6"></div>

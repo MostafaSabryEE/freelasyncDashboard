@@ -106,9 +106,34 @@ where id = 'AUTH_USER_UUID';
 ```
 
 Replace `AUTH_USER_UUID` with the UUID shown for the Auth user. Additional
-users can be created in Supabase Authentication and assigned a role in
-`app_users`. The in-app Add User form remains available for local mode; a
-browser cannot create Auth users because that requires a server-side secret.
+users can be created from the application through the protected
+`create-user` Edge Function, and password/profile changes use
+`update-user`.
+
+### Deploy user-management Edge Functions
+
+From the project folder, authenticate the Supabase CLI through `npx`:
+
+```powershell
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase secrets set --env-file .env.supabase
+npx supabase functions deploy create-user
+npx supabase functions deploy update-user
+```
+
+Before the `secrets set` command, create a local `.env.supabase` file with
+this one line, replacing the value with your Supabase Secret key:
+
+```text
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SERVICE_ROLE_KEY
+```
+
+The file is ignored by Git and should never be committed. The service-role
+key is stored only as an Edge Function secret. Never put it in Vercel
+environment variables or frontend files. The functions verify that the
+caller is an active `admin` in `app_users` before creating accounts or
+changing passwords.
 
 ### Phase 2 local test checklist
 

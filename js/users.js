@@ -29,9 +29,10 @@ const FreelaUsers = (() => {
 
         const rows = _users.map(u => {
             const canEdit = currentUser?.role === "admin" || u.id === currentUser?.id;
+            const canChangePassword = u.id === currentUser?.id && currentUser?.role !== "admin";
             const canDelete = FreelaAuth.canDeleteUser(u);
             const actions = [
-                canEdit ? `<button class="btn-secondary btn-sm" onclick="FreelaUsers.openEdit('${u.id}')">Edit</button>` : "",
+                canChangePassword ? `<button class="btn-secondary btn-sm" onclick="FreelaUsers.openEdit('${u.id}')">Change Password</button>` : (canEdit ? `<button class="btn-secondary btn-sm" onclick="FreelaUsers.openEdit('${u.id}')">Edit</button>` : ""),
                 canDelete ? `<button class="btn-danger btn-sm" onclick="FreelaUsers.remove('${u.id}')">Delete</button>` : '<span style="color:var(--text-muted); font-size:0.75rem;">Protected</span>'
             ].filter(Boolean).join("");
             return `

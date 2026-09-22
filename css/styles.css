@@ -89,6 +89,8 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .project-list { display: flex; flex-direction: column; gap: 10px; margin-top: 5px; }
 .empty-state { text-align: center; color: var(--text-muted); padding: 30px 0; border: 2px dashed var(--border); border-radius: 6px; }
+.comment-mentioned { border-left: 4px solid var(--teal); background: rgba(20, 184, 166, 0.1); box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.2); }
+.task-focused { border-color: var(--teal) !important; box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.35); }
 
 .proj-row-card { border-radius: 6px; border: 1px solid var(--border); background-color: rgba(0, 0, 0, 0.15); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s ease; gap: 15px; }
 .proj-row-card:hover { background-color: rgba(31, 111, 178, 0.1); border-color: var(--accent); transform: translateX(2px); }

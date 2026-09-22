@@ -13,6 +13,7 @@ const App = (() => {
     let _projects = [];
     let _users = [];
     let _activeProjectId = null;
+    let _focusTaskId = null;
     let _portfolioView = "list";
     let _filters = { search: "", status: "all", priority: "all", assignee: "all" };
     let _unsubscribeRealtime = null;
@@ -209,8 +210,8 @@ const App = (() => {
             return perms.manageOwnTasksOnly && user && task.assignedTo === user.id;
         },
 
-        openProjectDetails: (pid) => { _activeProjectId = pid; state.refreshDashboard(); },
-        closeProjectDetails: () => { _activeProjectId = null; state.refreshDashboard(); },
+        openProjectDetails: (pid, taskId = null) => { _activeProjectId = pid; _focusTaskId = taskId; state.refreshDashboard(); },
+        closeProjectDetails: () => { _activeProjectId = null; _focusTaskId = null; state.refreshDashboard(); },
 
         addProject: async (pData) => {
             const seq = await state.nextSeq("projectSeq");
@@ -301,7 +302,7 @@ const App = (() => {
                 const user = state.findMentionedUser(mention);
                 if (!user) { unresolved.push(`@${mention}`); continue; }
                 if (user.id !== FreelaAuth.getCurrentUser().id) {
-                    await state.notifyUser(user.id, `${FreelaAuth.getCurrentUser().fullName} mentioned you in ${project.name}.`, project.id, "mention");
+                    await state.notifyUser(user.id, `${FreelaAuth.getCurrentUser().fullName} mentioned you in ${project.name}.`, project.id, "mention", null);
                     notified++;
                 }
             }
@@ -474,12 +475,12 @@ const App = (() => {
             project.activityHistory = project.activityHistory.slice(0, 100);
         },
 
-        notifyUser: async (userId, message, projectId, type = "general") => {
+        notifyUser: async (userId, message, projectId, type = "general", taskId = null) => {
             if (!userId) return;
             const user = await FreelaDB.get("users", userId) || _users.find(u => u.id === userId);
             if (!user) return;
             if (!Array.isArray(user.notifications)) user.notifications = [];
-            user.notifications.unshift({ id: `N-${Date.now()}`, message, projectId, type, createdAt: new Date().toISOString(), read: false });
+            user.notifications.unshift({ id: `N-${Date.now()}`, message, projectId, taskId, type, createdAt: new Date().toISOString(), read: false });
             user.notifications = user.notifications.slice(0, 50);
             await FreelaDB.put("users", user);
         },
@@ -494,6 +495,18 @@ const App = (() => {
             ui.showNotify("Notifications marked as read.");
         },
 
+        openNotification: async (notification) => {
+            await state.markNotificationsRead();
+            ui.closeModal();
+            if (notification.projectId) state.openProjectDetails(notification.projectId, notification.taskId || null);
+        },
+
+        openNotificationById: async (notificationId) => {
+            const currentUser = FreelaAuth.getCurrentUser();
+            const notification = (currentUser?.notifications || []).find(item => item.id === notificationId);
+            if (notification) await state.openNotification(notification);
+        },
+
         showNotifications: async () => {
             const currentUser = FreelaAuth.getCurrentUser();
             if (!currentUser) return;
@@ -502,7 +515,7 @@ const App = (() => {
             ui.renderNotificationBadge();
             const notifications = user && Array.isArray(user.notifications) ? user.notifications : [];
             const html = notifications.length
-                ? `<div class="notification-list">${notifications.slice(0, 20).map(notification => `<div class="notification-item ${notification.read ? '' : 'unread'}"><strong>${ui.escapeHtml(notification.message)}</strong><small>${new Date(notification.createdAt).toLocaleString()}</small></div>`).join('')}</div>`
+                ? `<div class="notification-list">${notifications.slice(0, 20).map(notification => `<button class="notification-item ${notification.read ? '' : 'unread'}" onclick="App.state.openNotificationById('${ui.escapeHtml(notification.id)}')"><strong>${ui.escapeHtml(notification.message)}</strong><small>${new Date(notification.createdAt).toLocaleString()}${notification.taskId ? ' · Open task' : ' · Open project'}</small></button>`).join('')}</div>`
                 : '<div class="empty-state">No notifications yet.</div>';
             ui.openModal("Notifications", html, async () => {
                 await state.markNotificationsRead();
@@ -517,7 +530,7 @@ const App = (() => {
             const tid = `T-${String(seq).padStart(5, '0')}`;
             project.tasks.push({ id: tid, title, status, priority: priority || "Medium", deadline, comment, assignedTo: assignedTo || "", dependencies, blockers: [], requirements: [], testCases: [], bugs: [], logs: [] });
             state.recordActivity(project, "task_created", `Task "${title}" was created.`, tid);
-            await state.notifyUser(assignedTo, `You were assigned task "${title}".`, pid);
+            await state.notifyUser(assignedTo, `You were assigned task "${title}".`, pid, "task_assignment", tid);
             await FreelaDB.put("projects", project);
             state.syncDropdowns(pid);
             state.refreshDashboard();
@@ -784,7 +797,7 @@ const App = (() => {
                 const blockerLines = document.getElementById('mTBlockers').value.split('\n').map(value => value.trim()).filter(Boolean);
                 task.blockers = blockerLines.map((text, index) => ({ id: (task.blockers || [])[index]?.id || `B-${Date.now()}-${index}`, text, status: 'open', createdBy: FreelaAuth.getCurrentUser().fullName, createdAt: (task.blockers || [])[index]?.createdAt || new Date().toISOString() }));
                 if (previousStatus !== task.status) state.recordActivity(project, "task_status_changed", `Task "${task.title}" changed to ${task.status}.`, tid);
-                if (previousAssignee !== task.assignedTo) await state.notifyUser(task.assignedTo, `You were assigned task "${task.title}".`, pid);
+                if (previousAssignee !== task.assignedTo) await state.notifyUser(task.assignedTo, `You were assigned task "${task.title}".`, pid, "task_assignment", tid);
                 state.recordActivity(project, "task_updated", `Task "${task.title}" was updated.`, tid);
                 await FreelaDB.put("projects", project);
                 ui.closeModal();
@@ -817,7 +830,7 @@ const App = (() => {
             task.status = "Blocked";
             state.recordActivity(project, "blocker_created", `Blocker added to task "${task.title}".`, tid);
             await FreelaDB.put("projects", project);
-            await state.notifyUser(project.createdBy, `A blocker was added to task "${task.title}".`, pid);
+            await state.notifyUser(project.createdBy, `A blocker was added to task "${task.title}".`, pid, "blocker", tid);
             state.refreshDashboard();
         },
 
@@ -1080,8 +1093,14 @@ const App = (() => {
             p.tasks.forEach(t => t.logs.forEach(l => pTotalHours += l.hours));
             const projDeadlineBadge = ui.getDeadlineBadgeHtml(p.deadline, pStatus);
 
-            const commentsList = (p.commentsHistory || []).map(c => `
-                <div class="comment-item">
+            const currentMentionNames = [currentUser?.username, currentUser?.fullName]
+                .filter(Boolean)
+                .map(value => String(value).replace(/[^a-z0-9]/gi, '').toLowerCase());
+            const commentsList = (p.commentsHistory || []).map(c => {
+                const mentionedNames = (c.mentions || []).map(value => String(value).replace(/[^a-z0-9]/gi, '').toLowerCase());
+                const mentionsCurrentUser = mentionedNames.some(value => currentMentionNames.includes(value)) || currentMentionNames.some(value => new RegExp(`@${value}\\b`, 'i').test(c.text || ''));
+                return `
+                <div class="comment-item ${mentionsCurrentUser ? 'comment-mentioned' : ''}" id="comment-${ui.escapeHtml(c.id)}">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span class="comment-time">${new Date(c.timestamp).toLocaleString()} ${c.author ? '&middot; ' + ui.escapeHtml(c.author) : ''}${c.replyTo ? ' &middot; Reply' : ''}</span>
                         ${perms.deleteData ? `<button class="btn-danger btn-sm" onclick="App.state.deleteProjectComment('${p.id}', '${c.id}')">x</button>` : ''}
@@ -1089,7 +1108,8 @@ const App = (() => {
                     <div class="comment-text">${ui.escapeHtml(c.text)}</div>
                     <button class="btn-secondary btn-sm comment-reply" onclick="App.state.replyToComment('${p.id}', '${c.id}')">Reply</button>
                 </div>
-            `).join('');
+            `;
+            }).join('');
 
             const decisionsHtml = (p.decisions || []).map(decision => `<div class="communication-item"><strong>${ui.escapeHtml(decision.title)}</strong><span>${ui.escapeHtml(decision.rationale)}</span><small>${ui.escapeHtml(decision.author)} &middot; ${new Date(decision.createdAt).toLocaleString()}</small>${canManageProjectSections ? `<button class="btn-secondary btn-sm" onclick="App.state.editDecision('${p.id}', '${decision.id}')">Edit</button>` : ''}</div>`).join('') || '<div class="empty-state">No decisions recorded.</div>';
             const meetingNotesHtml = (p.meetingNotes || []).map(note => `<div class="communication-item"><strong>${ui.escapeHtml(note.subject)}</strong><span>${ui.escapeHtml(note.notes)}</span><small>${ui.escapeHtml(note.author)} &middot; ${new Date(note.createdAt).toLocaleString()}</small></div>`).join('') || '<div class="empty-state">No meeting notes recorded.</div>';
@@ -1154,7 +1174,7 @@ const App = (() => {
                         `; }).join('');
 
                     return `
-                        <div class="task-item">
+                        <div class="task-item ${_focusTaskId === t.id ? 'task-focused' : ''}" id="task-${ui.escapeHtml(p.id)}-${ui.escapeHtml(t.id)}">
                             <div class="task-header">
                                 <span class="task-title">
                                     <span class="badge ${ui.getStatusClass(tStatus)}">${tStatus}</span>
@@ -1245,6 +1265,11 @@ const App = (() => {
                     <div class="comment-history-panel"><div class="comment-history-title">Activity Feed</div><div class="activity-list">${(p.activityHistory || []).slice(0, 15).map(event => `<div class="activity-row"><span class="activity-dot"></span><div><strong>${ui.escapeHtml(event.message)}</strong><small>${ui.escapeHtml(event.actor)} &middot; ${new Date(event.timestamp).toLocaleString()}</small></div></div>`).join('') || '<div class="empty-state">No activity recorded yet.</div>'}</div></div>
                 </div>
             `;
+            if (_focusTaskId) {
+                const taskElement = document.getElementById(`task-${p.id}-${_focusTaskId}`);
+                if (taskElement) taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                _focusTaskId = null;
+            }
         },
 
         exportData: async () => {

@@ -1,14 +1,21 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { requireAdmin } from "../_shared/auth.ts";
+import { requireAppUser } from "../_shared/auth.ts";
 
 const allowedRoles = new Set(["admin", "owner", "project_manager", "product_owner", "developer", "tester", "client"]);
+const creatorRoles = new Map([
+    ["admin", new Set(["admin", "owner", "project_manager", "product_owner", "developer", "tester", "client"])],
+    ["project_manager", new Set(["owner", "project_manager", "developer", "tester"])],
+    ["owner", new Set(["owner", "project_manager", "developer", "tester"])],
+    ["tester", new Set(["owner", "project_manager", "developer", "tester"])],
+    ["developer", new Set(["owner", "project_manager", "developer", "tester"])]
+]);
 
 Deno.serve(async (request) => {
     if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
     if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
     try {
-        const { adminClient } = await requireAdmin(request);
+        const { adminClient, profile: creator } = await requireAppUser(request);
         const body = await request.json();
         const email = String(body.email || body.username || "").trim().toLowerCase();
         const username = String(body.username || email.split("@")[0]).trim();
@@ -20,6 +27,9 @@ Deno.serve(async (request) => {
         if (fullName.length < 2) return jsonResponse({ error: "Full name is required." }, 400);
         if (password.length < 6) return jsonResponse({ error: "Password must be at least 6 characters." }, 400);
         if (!allowedRoles.has(role)) return jsonResponse({ error: "Invalid user role." }, 400);
+        if (!creatorRoles.get(creator.role)?.has(role)) {
+            return jsonResponse({ error: "You do not have permission to create this role." }, 403);
+        }
 
         const { data: created, error: createError } = await adminClient.auth.admin.createUser({
             email,

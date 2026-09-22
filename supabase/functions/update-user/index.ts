@@ -1,5 +1,5 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
-import { requireAdmin } from "../_shared/auth.ts";
+import { requireAppUser } from "../_shared/auth.ts";
 
 const allowedRoles = new Set(["admin", "owner", "project_manager", "product_owner", "developer", "tester", "client"]);
 
@@ -8,7 +8,7 @@ Deno.serve(async (request) => {
     if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
 
     try {
-        const { adminClient } = await requireAdmin(request);
+        const { adminClient, user: caller, profile: callerProfile } = await requireAppUser(request);
         const body = await request.json();
         const id = String(body.userId || "").trim();
         const fullName = String(body.fullName || "").trim();
@@ -21,13 +21,21 @@ Deno.serve(async (request) => {
         if (!allowedRoles.has(role)) return jsonResponse({ error: "Invalid user role." }, 400);
         if (password && password.length < 6) return jsonResponse({ error: "Password must be at least 6 characters." }, 400);
 
-        const { data: target, error: targetError } = await adminClient.from("app_users").select("id").eq("id", id).single();
+        const isAdmin = callerProfile.role === "admin";
+        if (!isAdmin) {
+            if (id !== caller.id) return jsonResponse({ error: "You can change only your own password." }, 403);
+            if (!password) return jsonResponse({ error: "Only password changes are allowed for your account." }, 403);
+        }
+
+        const { data: target, error: targetError } = await adminClient.from("app_users").select("id, username, full_name, role, active, notifications, created_at").eq("id", id).single();
         if (targetError || !target) return jsonResponse({ error: "User not found." }, 404);
 
         if (password) {
             const { error } = await adminClient.auth.admin.updateUserById(id, { password });
             if (error) return jsonResponse({ error: error.message }, 400);
         }
+
+        if (!isAdmin) return jsonResponse({ user: target });
 
         const { data: profile, error: profileError } = await adminClient
             .from("app_users")

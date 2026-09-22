@@ -475,3 +475,25 @@ begin
     end if;
 end;
 $$;
+
+create or replace function public.prevent_app_user_privilege_change()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+    if old.role is distinct from new.role
+       or old.active is distinct from new.active then
+        if auth.role() <> 'service_role' and not public.is_app_admin() then
+            raise exception 'Only administrators can change user roles or active status';
+        end if;
+    end if;
+    return new;
+end;
+$$;
+
+drop trigger if exists protect_app_user_privileges on public.app_users;
+create trigger protect_app_user_privileges
+    before update on public.app_users
+    for each row execute procedure public.prevent_app_user_privilege_change();

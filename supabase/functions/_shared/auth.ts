@@ -5,7 +5,7 @@ export function getBearerToken(request: Request) {
     return header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
 }
 
-export async function requireAdmin(request: Request) {
+export async function requireAppUser(request: Request) {
     const token = getBearerToken(request);
     if (!token) throw new Error("Missing authorization token.");
 
@@ -20,9 +20,15 @@ export async function requireAdmin(request: Request) {
         .select("id, role, active")
         .eq("id", userData.user.id)
         .single();
-    if (profileError || !profile || profile.active !== true || profile.role !== "admin") {
-        throw new Error("Only active administrators can perform this action.");
+    if (profileError || !profile || profile.active !== true) {
+        throw new Error("Only active users can perform this action.");
     }
 
-    return { adminClient, user: userData.user };
+    return { adminClient, user: userData.user, profile };
+}
+
+export async function requireAdmin(request: Request) {
+    const result = await requireAppUser(request);
+    if (result.profile.role !== "admin") throw new Error("Only active administrators can perform this action.");
+    return result;
 }

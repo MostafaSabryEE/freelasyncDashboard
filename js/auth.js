@@ -23,7 +23,7 @@ const FreelaAuth = (() => {
         },
         owner: {
             label: "Owner",
-            manageUsers: false,
+            manageUsers: true,
             manageProjects: false,
             manageTasks: false,
             manageOwnTasksOnly: false,
@@ -49,7 +49,7 @@ const FreelaAuth = (() => {
         },
         developer: {
             label: "Developer",
-            manageUsers: false,
+            manageUsers: true,
             manageProjects: false,
             manageTasks: true,
             manageOwnTasksOnly: true,
@@ -57,7 +57,7 @@ const FreelaAuth = (() => {
         },
         tester: {
             label: "Tester",
-            manageUsers: false,
+            manageUsers: true,
             manageProjects: false,
             manageTasks: true,
             manageOwnTasksOnly: true,
@@ -189,6 +189,17 @@ const FreelaAuth = (() => {
         return (ROLES[roleKey] && ROLES[roleKey].label) || roleKey;
     }
 
+    function canCreateRole(role) {
+        const currentRole = _currentUser?.role;
+        if (currentRole === "admin") return Boolean(ROLES[role]);
+        return ["project_manager", "owner", "tester", "developer"].includes(currentRole) && ["owner", "project_manager", "developer", "tester"].includes(role);
+    }
+
+    function canDeleteUser(user) {
+        if (_currentUser?.role === "admin") return user?.id !== _currentUser.id;
+        return _currentUser?.role === "project_manager" && ["owner", "tester", "developer"].includes(user?.role);
+    }
+
     async function invokeAdminFunction(name, body) {
         const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
         if (!client) return null;
@@ -210,8 +221,7 @@ const FreelaAuth = (() => {
         if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
         const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
         if (client) {
-            if (_currentUser?.role !== "admin") return { ok: false, msg: "Only Admin users can create Supabase accounts." };
-            if (!ROLES[role]) return { ok: false, msg: "Invalid user role." };
+            if (!canCreateRole(role)) return { ok: false, msg: "You do not have permission to create this role." };
             return invokeAdminFunction("create-user", { email: username, username, fullName, role, password });
         }
         if (!ROLES[role]) return { ok: false, msg: "Invalid user role." };
@@ -233,7 +243,7 @@ const FreelaAuth = (() => {
         if (!getPermissions().manageUsers) return { ok: false, msg: "You do not have permission to manage users." };
         const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
         if (client) {
-            if (_currentUser?.role !== "admin") return { ok: false, msg: "Only Admin users can update Supabase accounts." };
+            if (_currentUser?.role !== "admin" && (id !== _currentUser?.id || !password)) return { ok: false, msg: "You can change only your own password." };
             if (!ROLES[role]) return { ok: false, msg: "Invalid user role." };
             const result = await invokeAdminFunction("update-user", { userId: id, fullName, role, password, active });
             if (!result?.ok) return result || { ok: false, msg: "Request failed." };
@@ -244,6 +254,13 @@ const FreelaAuth = (() => {
         }
         const user = await FreelaDB.get("users", id);
         if (!user) return { ok: false, msg: "User not found." };
+        if (_currentUser?.role !== "admin") {
+            if (id !== _currentUser?.id || !password) return { ok: false, msg: "You can change only your own password." };
+            user.passwordHash = await sha256(password);
+            await FreelaDB.put("users", user);
+            if (_currentUser && _currentUser.id === id) _currentUser = user;
+            return { ok: true, user };
+        }
         if (role !== undefined && !ROLES[role]) return { ok: false, msg: "Invalid user role." };
         if (_currentUser?.role === "project_manager" && (user.role === "admin" || role === "admin")) {
             return { ok: false, msg: "Project Managers cannot edit Admin accounts." };
@@ -262,12 +279,13 @@ const FreelaAuth = (() => {
         if (_currentUser && _currentUser.id === id) return { ok: false, msg: "You cannot delete the account you are logged in with." };
         const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
         if (client) {
-            if (_currentUser?.role !== "admin") return { ok: false, msg: "Only Admin users can delete Supabase accounts." };
+            const target = await FreelaDB.get("users", id);
+            if (!canDeleteUser(target)) return { ok: false, msg: "You do not have permission to delete this user." };
             return invokeAdminFunction("delete-user", { userId: id });
         }
         const user = await FreelaDB.get("users", id);
-        if (_currentUser?.role === "project_manager" && user?.role === "admin") {
-            return { ok: false, msg: "Project Managers cannot delete Admin accounts." };
+        if (!canDeleteUser(user)) {
+            return { ok: false, msg: "You do not have permission to delete this user." };
         }
         await FreelaDB.remove("users", id);
         return { ok: true };
@@ -275,6 +293,6 @@ const FreelaAuth = (() => {
 
     return {
         ROLES, seedDefaultUsers, login, logout, restoreSession, getCurrentUser, updateCachedUser,
-        getPermissions, roleLabel, createUser, updateUser, deleteUser, sha256
+        getPermissions, roleLabel, canCreateRole, canDeleteUser, createUser, updateUser, deleteUser, sha256
     };
 })();

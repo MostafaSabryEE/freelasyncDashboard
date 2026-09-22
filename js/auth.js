@@ -262,8 +262,8 @@ const FreelaAuth = (() => {
         if (_currentUser && _currentUser.id === id) return { ok: false, msg: "You cannot delete the account you are logged in with." };
         const client = typeof FreelaSupabase !== "undefined" ? FreelaSupabase.getClient() : null;
         if (client) {
-            const { error } = await client.from("app_users").delete().eq("id", id);
-            return error ? { ok: false, msg: error.message } : { ok: true };
+            if (_currentUser?.role !== "admin") return { ok: false, msg: "Only Admin users can delete Supabase accounts." };
+            return invokeAdminFunction("delete-user", { userId: id });
         }
         const user = await FreelaDB.get("users", id);
         if (_currentUser?.role === "project_manager" && user?.role === "admin") {

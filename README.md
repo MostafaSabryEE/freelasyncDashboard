@@ -120,6 +120,7 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase secrets set --env-file .env.supabase
 npx supabase functions deploy create-user
 npx supabase functions deploy update-user
+npx supabase functions deploy delete-user
 ```
 
 Before the `secrets set` command, create a local `.env.supabase` file with

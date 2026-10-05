@@ -1,5 +1,4 @@
-﻿{
+{
   "buildCommand": "node \"Main Project - Dashboard Tool/scripts/generate-config.js\"",
   "outputDirectory": "Main Project - Dashboard Tool"
 }
-

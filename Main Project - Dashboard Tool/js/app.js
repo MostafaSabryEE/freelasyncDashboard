@@ -280,8 +280,20 @@ const App = (() => {
         },
 
         extractMentions: (text) => {
-            const names = String(text).match(/@[a-zA-Z0-9._-]+/g) || [];
+            const names = String(text).match(/@[a-zA-Z0-9._+-]*[a-zA-Z0-9](?:@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)?/g) || [];
             return [...new Set(names.map(name => name.slice(1).toLowerCase()))];
+        },
+
+        renderCommentText: (text, currentNames) => {
+            const re = /@[a-zA-Z0-9._+-]*[a-zA-Z0-9](?:@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)?/g;
+            const src = String(text || "");
+            let out = "", last = 0, m;
+            while ((m = re.exec(src))) {
+                const isSelf = currentNames.includes(m[0].slice(1).replace(/[^a-z0-9]/gi, '').toLowerCase());
+                out += ui.escapeHtml(src.slice(last, m.index)) + `<span class="mention-tag${isSelf ? ' mention-self' : ''}">${ui.escapeHtml(m[0])}</span>`;
+                last = m.index + m[0].length;
+            }
+            return out + ui.escapeHtml(src.slice(last));
         },
 
         findMentionedUser: (mention) => {
@@ -340,7 +352,7 @@ const App = (() => {
         handleMentionInput: (input) => {
             const suggestions = document.getElementById("mentionSuggestions");
             if (!suggestions) return;
-            const match = input.value.slice(0, input.selectionStart).match(/@([a-zA-Z0-9._-]*)$/);
+            const match = input.value.slice(0, input.selectionStart).match(/@([a-zA-Z0-9._@+-]*)$/);
             if (!match) { suggestions.innerHTML = ""; suggestions.style.display = "none"; return; }
             const query = match[1].toLowerCase();
             const matches = _users.filter(user => user.username.toLowerCase().startsWith(query) || user.fullName.toLowerCase().replace(/\s+/g, '').startsWith(query)).slice(0, 6);
@@ -355,7 +367,7 @@ const App = (() => {
             if (!input) return;
             const beforeCursor = input.value.slice(0, input.selectionStart);
             const afterCursor = input.value.slice(input.selectionStart);
-            input.value = `${beforeCursor.replace(/@[a-zA-Z0-9._-]*$/, `@${username} `)}${afterCursor}`;
+            input.value = `${beforeCursor.replace(/@[a-zA-Z0-9._@+-]*$/, `@${username} `)}${afterCursor}`;
             input.focus();
             const cursor = input.value.length - afterCursor.length;
             input.setSelectionRange(cursor, cursor);
@@ -1105,7 +1117,7 @@ const App = (() => {
                         <span class="comment-time">${new Date(c.timestamp).toLocaleString()} ${c.author ? '&middot; ' + ui.escapeHtml(c.author) : ''}${c.replyTo ? ' &middot; Reply' : ''}</span>
                         ${perms.deleteData ? `<button class="btn-danger btn-sm" onclick="App.state.deleteProjectComment('${p.id}', '${c.id}')">x</button>` : ''}
                     </div>
-                    <div class="comment-text">${ui.escapeHtml(c.text)}</div>
+                    <div class="comment-text">${state.renderCommentText(c.text, currentMentionNames)}</div>
                     <button class="btn-secondary btn-sm comment-reply" onclick="App.state.replyToComment('${p.id}', '${c.id}')">Reply</button>
                 </div>
             `;

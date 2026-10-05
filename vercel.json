@@ -1,4 +1,0 @@
-{
-  "buildCommand": "node scripts/generate-config.js",
-  "outputDirectory": "."
-}

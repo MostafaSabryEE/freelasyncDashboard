@@ -1,0 +1,9 @@
+Comments [✅] [❌] - [✔][✘] - [✓][✗]:
+--------------------------------------------
+- [✅] check the loging time will assigned to the user or the task assignee.
+- [✅] Delete  exported button or delete button from all users except admin.
+- [✅] Delete Product Owner Role.
+- [❌] Keep the report generation for the logged tasks only and ssigned tasks to this user not include the other tasks.
+- [❌] Edit the comments to be as Azure comments space.
+- [❌] Edit the mensions and check the notifications and solve the bug.
+- [❌]

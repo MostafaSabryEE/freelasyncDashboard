@@ -89,7 +89,9 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .project-list { display: flex; flex-direction: column; gap: 10px; margin-top: 5px; }
 .empty-state { text-align: center; color: var(--text-muted); padding: 30px 0; border: 2px dashed var(--border); border-radius: 6px; }
-.comment-mentioned { border-left: 4px solid var(--teal); background: rgba(20, 184, 166, 0.1); box-shadow: 0 0 0 1px rgba(20, 184, 166, 0.2); }
+.comment-mentioned { border-left: 4px solid #ef4444; background: rgba(239, 68, 68, 0.12); box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3); }
+.mention-tag { display: inline-block; padding: 0 6px; border-radius: 4px; background: rgba(100,181,246,0.18); color: #64b5f6; font-weight: 600; }
+.mention-self { background: rgba(239,68,68,0.25); color: #ff6b6b; }
 .task-focused { border-color: var(--teal) !important; box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.35); }
 
 .proj-row-card { border-radius: 6px; border: 1px solid var(--border); background-color: rgba(0, 0, 0, 0.15); padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s ease; gap: 15px; }

@@ -396,31 +396,66 @@ as $$
     );
 $$;
 
+create or replace function public.is_app_client()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select exists (
+        select 1 from public.app_users
+        where id = auth.uid() and role = 'client' and active = true
+    );
+$$;
+
+create or replace function public.current_app_role()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+    select role::text from public.app_users
+    where id = auth.uid() and active = true;
+$$;
+
 create policy "Authenticated users can read app users"
     on public.app_users for select to authenticated
     using (active = true or id = auth.uid() or public.is_app_admin());
 
+drop policy if exists "Users can update their own app profile" on public.app_users;
 create policy "Users can update their own app profile"
     on public.app_users for update to authenticated
     using (id = auth.uid() or public.is_app_admin())
-    with check (id = auth.uid() or public.is_app_admin());
+    with check (
+        public.is_app_admin()
+        or (id = auth.uid() and role::text = public.current_app_role() and active = true)
+    );
 
 create policy "Admins can delete app users"
     on public.app_users for delete to authenticated
     using (public.is_app_admin() and id <> auth.uid());
 
+drop policy if exists "Authenticated users can read app projects" on public.app_projects;
 create policy "Authenticated users can read app projects"
     on public.app_projects for select to authenticated
-    using (true);
+    using (
+        public.is_app_admin()
+        or not public.is_app_client()
+        or data ->> 'clientUserId' = auth.uid()::text
+    );
 
+drop policy if exists "Authenticated users can create app projects" on public.app_projects;
 create policy "Authenticated users can create app projects"
     on public.app_projects for insert to authenticated
-    with check (updated_by = auth.uid());
+    with check (not public.is_app_client() and updated_by = auth.uid());
 
+drop policy if exists "Authenticated users can update app projects" on public.app_projects;
 create policy "Authenticated users can update app projects"
     on public.app_projects for update to authenticated
-    using (true)
-    with check (updated_by = auth.uid());
+    using (not public.is_app_client())
+    with check (not public.is_app_client() and updated_by = auth.uid());
 
 create policy "Admins can delete app projects"
     on public.app_projects for delete to authenticated
@@ -497,3 +532,4 @@ drop trigger if exists protect_app_user_privileges on public.app_users;
 create trigger protect_app_user_privileges
     before update on public.app_users
     for each row execute procedure public.prevent_app_user_privilege_change();
+-- Teams, personal to-dos and budget approval: run supabase/workspaces-finance.sql next.

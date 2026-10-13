@@ -15,6 +15,7 @@ Deno.serve(async (request) => {
         const role = String(body.role || "");
         const password = String(body.password || "");
         const active = body.active !== false;
+        const teamId = body.teamId ? String(body.teamId) : null;
 
         if (!id) return jsonResponse({ error: "User ID is required." }, 400);
         if (fullName.length < 2) return jsonResponse({ error: "Full name is required." }, 400);
@@ -27,7 +28,7 @@ Deno.serve(async (request) => {
             if (!password) return jsonResponse({ error: "Only password changes are allowed for your account." }, 403);
         }
 
-        const { data: target, error: targetError } = await adminClient.from("app_users").select("id, username, full_name, role, active, notifications, created_at").eq("id", id).single();
+        const { data: target, error: targetError } = await adminClient.from("app_users").select("id, username, full_name, role, active, notifications, team_id, created_at").eq("id", id).single();
         if (targetError || !target) return jsonResponse({ error: "User not found." }, 404);
 
         if (password) {
@@ -39,9 +40,9 @@ Deno.serve(async (request) => {
 
         const { data: profile, error: profileError } = await adminClient
             .from("app_users")
-            .update({ full_name: fullName, role, active })
+            .update({ full_name: fullName, role, active, ...(teamId ? { team_id: teamId } : {}) })
             .eq("id", id)
-            .select("id, username, full_name, role, active, notifications, created_at")
+            .select("id, username, full_name, role, active, notifications, team_id, created_at")
             .single();
         if (profileError) return jsonResponse({ error: profileError.message }, 400);
 

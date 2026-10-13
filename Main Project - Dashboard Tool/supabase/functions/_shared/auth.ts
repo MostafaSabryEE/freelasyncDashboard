@@ -17,7 +17,7 @@ export async function requireAppUser(request: Request) {
 
     const { data: profile, error: profileError } = await adminClient
         .from("app_users")
-        .select("id, role, active")
+        .select("id, role, active, team_id")
         .eq("id", userData.user.id)
         .single();
     if (profileError || !profile || profile.active !== true) {

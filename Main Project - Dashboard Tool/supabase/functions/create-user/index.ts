@@ -4,10 +4,8 @@ import { requireAppUser } from "../_shared/auth.ts";
 const allowedRoles = new Set(["admin", "owner", "project_manager", "product_owner", "developer", "tester", "client"]);
 const creatorRoles = new Map([
     ["admin", new Set(["admin", "owner", "project_manager", "product_owner", "developer", "tester", "client"])],
-    ["project_manager", new Set(["owner", "project_manager", "developer", "tester"])],
-    ["owner", new Set(["owner", "project_manager", "developer", "tester"])],
-    ["tester", new Set(["owner", "project_manager", "developer", "tester"])],
-    ["developer", new Set(["owner", "project_manager", "developer", "tester"])]
+    ["project_manager", new Set(["owner", "project_manager", "developer", "tester", "client"])],
+    ["owner", new Set(["owner", "project_manager", "developer", "tester", "client"])]
 ]);
 
 Deno.serve(async (request) => {
@@ -22,6 +20,15 @@ Deno.serve(async (request) => {
         const fullName = String(body.fullName || "").trim();
         const password = String(body.password || "");
         const role = String(body.role || "developer");
+        const requestedTeam = String(body.teamId || "");
+        let teamId = String(creator.team_id || "T-001");
+        if (creator.role === "admin" && requestedTeam) teamId = requestedTeam;
+        if (creator.role === "owner" && requestedTeam && requestedTeam !== teamId) {
+            // Owners may only place users in teams they created.
+            const { data: ownedTeam } = await adminClient.from("app_teams").select("id").eq("id", requestedTeam).eq("owner_id", creator.id).maybeSingle();
+            if (!ownedTeam) return jsonResponse({ error: "You can only add users to teams you own." }, 403);
+            teamId = requestedTeam;
+        }
 
         if (!email.includes("@")) return jsonResponse({ error: "A valid email address is required." }, 400);
         if (fullName.length < 2) return jsonResponse({ error: "Full name is required." }, 400);
@@ -41,9 +48,9 @@ Deno.serve(async (request) => {
 
         const { data: profile, error: profileError } = await adminClient
             .from("app_users")
-            .update({ username, full_name: fullName, role, active: true })
+            .update({ username, full_name: fullName, role, active: true, team_id: teamId })
             .eq("id", created.user.id)
-            .select("id, username, full_name, role, active, notifications, created_at")
+            .select("id, username, full_name, role, active, notifications, team_id, created_at")
             .single();
         if (profileError) {
             await adminClient.auth.admin.deleteUser(created.user.id);

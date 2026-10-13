@@ -1,9 +1,9 @@
-# FREELASYNC — Project & Task Management Tool
+# MS-CollabDash â€” Project & Task Management
 
 A single client-side web application (HTML + CSS + JavaScript) for managing
 projects, planned tasks, and logged work time. It runs entirely in the
 browser, stores its data in **IndexedDB** (with an automatic `localStorage`
-fallback), and is ready to be published as a **static site on GitHub Pages** —
+fallback), and is ready to be published as a **static site on GitHub Pages** â€”
 no server, database server, or build step required.
 
 Built by **Mostafa Sabry**.
@@ -12,8 +12,8 @@ Built by **Mostafa Sabry**.
 
 ## 1. Features
 
-- **Login screen** with the FreelaSync logo and a role-based user directory.
-- **User management** (Admin / Owner only) — create, edit, disable, and
+- **Login screen** with the brand logo and role-based dashboard views.
+- **User management** (Admin / Owner only) â€” create, edit, disable, and
   delete accounts for the following roles:
   | Role | Key | Typical permissions |
   |---|---|---|
@@ -23,32 +23,36 @@ Built by **Mostafa Sabry**.
   | Product Owner | `product_owner` | Manage projects & tasks, no deletions, no user management |
   | Developer | `developer` | View assigned projects, update/log time on **own** assigned tasks |
   | Tester | `tester` | View assigned projects, update/log time on **own** assigned tasks |
-- **Projects, Tasks & Time Logs** — create projects, plan tasks, assign them
+  | Client | `client` | Read-only progress view for projects explicitly linked to the account |
+- **Projects, Tasks & Time Logs** â€” create projects, plan tasks, assign them
   to a user, and log start/end time windows against each task.
 - **Comment history** per project, with author and timestamp.
 - **Dashboards** with live stats (project count, planned tasks, total hours).
+- **Client portal view** â€” assign a client account to a project to show its status,
+  task progress, and milestones without exposing internal finance or team notes.
+- **Accessible responsive theme** â€” persistent light/dark modes, keyboard-accessible
+  navigation, visible focus, and layouts that adapt to desktop, tablet, and mobile.
 - **HTML report export** per project, and a full JSON **database
   export/import** for backups.
-- **Phase 1 Supabase foundation** — a normalized shared-backend schema and
+- **Phase 1 Supabase foundation** â€” a normalized shared-backend schema and
   browser client configuration are included under `supabase/` and `js/`.
-- **Phase 2 Monitoring MVP** — searchable project monitoring, task priorities,
+- **Phase 2 Monitoring MVP** â€” searchable project monitoring, task priorities,
   dependencies, blockers, Kanban status movement, overdue/workload metrics,
   activity feeds, and local notifications.
-- **Phase 3 Communication MVP** — threaded project replies, @mentions,
+- **Phase 3 Communication MVP** â€” threaded project replies, @mentions,
   decision records, meeting notes, and attachment links.
-- **Phase 4 SDLC MVP** — requirements, acceptance criteria, test cases, bug
+- **Phase 4 SDLC MVP** â€” requirements, acceptance criteria, test cases, bug
   records, approvals, and release planning.
-- **Phase 5 freelance operations** — milestone planning, invoicing, billing
+- **Phase 5 freelance operations** â€” milestone planning, invoicing, billing
   status, and project value monitoring for client work and contractor delivery.
-- **Theme matched to the brand logo** — navy blue (`#1f6fb2`) and teal/green
-  (`#14b8a6`) accents on a dark UI.
 
 ## 2. Project structure
 
 ```
 index.html            Login screen + application shell (entry point)
 assets/logo.png        Brand logo used in the header, login screen and favicon
-css/styles.css         All styling (dark theme, colors derived from the logo)
+css/styles.css         Responsive light/dark theme and component styles
+js/theme.js            Persistent light/dark theme toggle
 js/db.js               IndexedDB wrapper ("users", "projects", "meta" stores)
 js/auth.js              Authentication, password hashing (SHA-256), roles
 js/users.js            User management UI (Admin/Owner only)
@@ -59,7 +63,7 @@ Arcive/                 Previous tool versions (kept for history, not used by th
 ## 3. Default demo accounts
 
 The first time the app runs in a browser it seeds these accounts
-(`js/auth.js` → `DEFAULT_USERS`). **Change these passwords before sharing the
+(`js/auth.js` â†’ `DEFAULT_USERS`). **Change these passwords before sharing the
 site publicly** (see Security notes below).
 
 | Username | Password | Role |
@@ -96,8 +100,8 @@ the database boundary.
 The browser UI now uses Supabase Auth and the shared `app_users`,
 `app_projects`, and `app_meta` tables when `SUPABASE_URL` and
 `SUPABASE_ANON_KEY` are configured. Run the complete `supabase/schema.sql`
-file in the SQL Editor, then create the first user in **Authentication →
-Users → Add user**. Promote that user to an administrator in SQL:
+file in the SQL Editor, then create the first user in **Authentication â†’
+Users â†’ Add user**. Promote that user to an administrator in SQL:
 
 ```sql
 update public.app_users
@@ -180,6 +184,17 @@ Supabase data/auth migration is implemented.
 4. Confirm the collected, outstanding, and milestone totals update immediately.
 5. Refresh the browser and verify the billing data remains stored locally.
 
+
+### Teams, finance, to-do and dashboards (latest)
+Run supabase/workspaces-finance.sql in the Supabase SQL editor **after** schema.sql, then redeploy the `create-user` and `update-user` Edge Functions (they now carry `team_id`).
+
+- **Teams** (admin): isolated workspaces; users and projects belong to one team and only see their own team (enforced by RLS in Supabase, UI-filtered in local mode).
+- **Task attachments**: every task has a type (Development / Test) and attachments (name + URL). Requirements, test cases and bug reports were removed from tasks.
+- **My To-Do**: personal items plus tasks assigned to you (ticking an assigned task toggles Done / In Progress).
+- **Finance**: Project Manager sets the budget and each user's percentage; input/output ledger per user; the client approves (or rejects) the budget and outputs stay blocked until approval. Budget edits reset approval to Pending.
+- **Dashboard**: Project Manager and Client views with progress, tasks, budget and deadlines.
+- Access: `manageFinance` (admin, PM), `approveBudget` (client), `manageTeams` / `viewAllTeams` (admin), `viewDashboard` (admin, owner, PM, client).
+
 ## 5. Data storage & security notes (read before publishing)
 
 Without Supabase configuration, this is a **static site** and data lives only
@@ -219,7 +234,7 @@ running the Vercel build script. Do not use the Supabase `service_role` key.
   shared workspace. Local password hashes are intentionally not imported;
   create users through Supabase Authentication.
 
-## 7. Publish on GitHub Pages — step by step
+## 7. Publish on GitHub Pages â€” step by step
 
 1. **Create a GitHub repository**
    - Go to [github.com/new](https://github.com/new).
@@ -234,7 +249,7 @@ running the Vercel build script. Do not use the Supabase `service_role` key.
    ```powershell
    git init
    git add .
-   git commit -m "Initial commit: FreelaSync static site"
+   git commit -m "Initial commit: MS-CollabDash"
    git branch -M main
    git remote add origin https://github.com/<your-username>/<your-repo>.git
    git push -u origin main
@@ -244,16 +259,16 @@ running the Vercel build script. Do not use the Supabase `service_role` key.
    username and repository name.
 
 3. **Enable GitHub Pages**
-   - In your repository on GitHub, go to **Settings** → **Pages** (left
+   - In your repository on GitHub, go to **Settings** â†’ **Pages** (left
      sidebar, under "Code and automation").
-   - Under **Build and deployment → Source**, choose **Deploy from a
+   - Under **Build and deployment â†’ Source**, choose **Deploy from a
      branch**.
    - Under **Branch**, select `main` and folder `/ (root)`, then click
      **Save**.
 
 4. **Wait for the deployment**
-   - GitHub will build and publish the site (usually takes 30–60 seconds).
-   - Refresh the **Settings → Pages** screen; a green banner will show your
+   - GitHub will build and publish the site (usually takes 30â€“60 seconds).
+   - Refresh the **Settings â†’ Pages** screen; a green banner will show your
      live URL, typically:
      ```
      https://<your-username>.github.io/<your-repo>/
@@ -261,7 +276,7 @@ running the Vercel build script. Do not use the Supabase `service_role` key.
 
 5. **Verify the site**
    - Open the URL from step 4.
-   - You should see the FreelaSync login screen with the logo.
+   - You should see the MS-CollabDash login screen with the logo.
    - Sign in with one of the demo accounts from section 3 to confirm
      everything works.
 
@@ -280,7 +295,7 @@ If you own a domain, add a `CNAME` file with your domain name to the project
 root, then configure the domain's DNS with a `CNAME` record pointing to
 `<your-username>.github.io` (or `A` records for an apex domain, per
 [GitHub's custom domain docs](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site)),
-and set the custom domain under **Settings → Pages → Custom domain**.
+and set the custom domain under **Settings â†’ Pages â†’ Custom domain**.
 
 ## 8. Changing the default passwords / roles
 
@@ -288,3 +303,22 @@ Before publishing publicly, open `js/auth.js` and edit the `DEFAULT_USERS`
 array to set your own usernames/passwords, or simply sign in as `admin` /
 `owner` after first launch and use the **User Management** tab to edit or
 delete the seeded accounts and create your real team accounts.
+
+To set up a client dashboard, create a user with the **Client** role, then
+select that account in **Client Portal Account** when creating or editing a
+project. Client accounts see only linked projects and have a read-only
+progress view. When using an existing Supabase project, run `supabase/client-access.sql` in
+the SQL editor to apply the client-specific row policies. For new projects,
+the same policies are included in `supabase/schema.sql`. The static IndexedDB
+mode is intended for local/demo use and is not a server-side security boundary.
+
+## Brand assets
+
+Regenerate the logo and favicons (`assets/favicon-32.png`, `favicon-64.png`, `favicon.ico`, etc.) from `New Logo 2.jpg` with `pip install pillow` then `python scripts/generate-brand-assets.py`. Brand colors, Inter typography and the 8px spacing scale are CSS variables at the end of `css/styles.css`.
+## Roles, approvals and financial report (latest)
+
+- **User creation:** only Admin, Business Owner and Project Manager can create users. Admin can delete any user; a Business Owner can delete users only in teams they created (Project Managers can no longer delete users).
+- **Teams:** only a Business Owner can create teams (Admins can view all). The owner has full authority over that team and its projects (manage, finance, delete). Teams store `owner_id`.
+- **Approvals (Project page):** each request has an assignee who approves it. Decisions stay editable: Approve, Reject or Reopen at any time. The client's budget approval on the Finance tab can also be changed.
+- **Finance tab:** Milestones moved here (Milestones and Invoices were removed from the Project page); allocation table has an *Other Allocations* row in every project and a *Logged hours* column; *Generate financial report* downloads a detailed HTML report (tasks, attachments, category summary, progress).
+- **Deploy:** re-run `supabase/workspaces-finance.sql` and redeploy the `create-user` and `delete-user` edge functions.

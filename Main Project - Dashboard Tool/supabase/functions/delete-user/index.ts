@@ -1,8 +1,6 @@
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
 import { requireAppUser } from "../_shared/auth.ts";
 
-const projectManagerDeletableRoles = new Set(["owner", "tester", "developer"]);
-
 Deno.serve(async (request) => {
     if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
     if (request.method !== "POST") return jsonResponse({ error: "Method not allowed." }, 405);
@@ -17,13 +15,19 @@ Deno.serve(async (request) => {
 
         const { data: target, error: targetError } = await adminClient
             .from("app_users")
-            .select("id, role")
+            .select("id, role, team_id")
             .eq("id", userId)
             .maybeSingle();
         if (targetError) return jsonResponse({ error: targetError.message }, 400);
         if (!target) return jsonResponse({ error: "User not found." }, 404);
-        if (callerProfile.role !== "admin" && (callerProfile.role !== "project_manager" || !projectManagerDeletableRoles.has(target.role))) {
-            return jsonResponse({ error: "You do not have permission to delete this user." }, 403);
+        // Admins delete anyone; Business Owners only non-admin users inside teams they created.
+        if (callerProfile.role !== "admin") {
+            let allowed = false;
+            if (callerProfile.role === "owner" && target.role !== "admin") {
+                const { data: team } = await adminClient.from("app_teams").select("id").eq("id", target.team_id).eq("owner_id", adminUser.id).maybeSingle();
+                allowed = Boolean(team);
+            }
+            if (!allowed) return jsonResponse({ error: "You do not have permission to delete this user." }, 403);
         }
 
         const { error } = await adminClient.auth.admin.deleteUser(userId);

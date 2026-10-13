@@ -1,0 +1,113 @@
+﻿MS-CollabDash - PROJECT BRIEF FOR ANOTHER AI MODEL
+===================================================
+Paste this as context before your specific prompts.
+
+
+1. WHAT IT IS
+-------------
+MS-CollabDash ("Project & Collaboration Dashboard") is a front-end-only project and task management web app. It runs as static HTML, CSS and vanilla JS, with no framework, no bundler and no build step. Roles are admin, owner, project manager, developer, tester and client. Data is stored either in Supabase (Postgres, Auth and Row Level Security) or in browser IndexedDB when Supabase isn't configured.
+
+Location: D:\Projects\PRJ-001 - Dashboard Tool\Main Project - Dashboard Tool
+          (git root is one level up, repo MostafaSabryEE/freelasyncDashboard)
+Environment: Windows and PowerShell. Python and Node are available. The app is served locally with
+          "python -m http.server 8080", then opened at http://localhost:8080/index.html
+
+
+2. FILE STRUCTURE
+-----------------
+index.html              App shell: login screen, header, tabs, KPI strip, forms, modals, inline scripts
+css/styles.css          One stylesheet. Original base (~250 lines), then appended override blocks:
+                        1) "accessible responsive theme"  2) "brand identity"
+js/theme.js             Light/dark toggle (localStorage key ms-collabdash-theme, data-theme on <html>)
+js/auth.js              ROLES + permissions, DEFAULT_USERS seeding, login/session
+js/db.js                Data layer (Supabase or IndexedDB)
+js/users.js             User Management tab (admin)
+js/app.js               Main logic: state, rendering, handlers (projects, tasks, kanban, KPIs, client views)
+js/supabase-config.js   Reads window.FREELASYNC_CONFIG (empty locally, so local mode)
+scripts/generate-config.js        Vercel build step: writes supabase-config.js from env vars
+scripts/generate-brand-assets.py  Pillow script: builds logo and favicons from "New Logo 2.jpg"
+supabase/schema.sql, client-access.sql   Tables and RLS policies (client policies are a migration)
+assets/                 logo.png, favicon.ico, favicon-32/64/180/192/512.png
+vercel.json             buildCommand: node scripts/generate-config.js, outputDirectory "."
+README.md               Setup, roles, theme and brand docs
+
+Unrelated items you may see in git status are under ../Archive Files - Dashboard Tool/ and the legacy "FREELASYNC - V1.0.html". The code names still carry the old "Freela" prefix (FreelaAuth, FREELASYNC_CONFIG). Don't rename them without asking.
+
+
+3. FEATURES
+-----------
+- Login: the username field accepts plain usernames or emails.
+- Workspace tab:
+  * A KPI strip (Projects, Tasks Planned, Total Time Logged, Overdue, Blocked, Assigned Work) sits top-left in an aria-live region.
+  * Below it are the Projects Portfolio and the create-project and add-task forms. Forms come after the KPIs and portfolio in the DOM.
+  * Each project has a detail view with a kanban board, task items, comments and monitoring panels (labelled "Freelancer Workspace").
+  * Further features:
+      - Task statuses: Not Started, In Progress, Reviewing, Done, Blocked, On Hold, Cancelled.
+      - Priorities: Low, Medium, High, Critical.
+      - Deadlines and overdue badges.
+      - Dependencies and approvals.
+      - SDLC status labels.
+      - @mentions in comments.
+      - Notifications and toasts.
+      - Finance items (currency, hourly or fixed type).
+      - Export and Import database buttons, and Reset Data.
+- User Management tab (admin): create users and assign roles. The project form has a "Client Portal Account" select (#pClientUser), which stores clientUserId on the project.
+- Client role (read-only): sees only projects where clientUserId equals their user id. The view shows a summary KPI set, a portfolio list, and a detail view with a progress bar, task list and milestones in <details>.
+- Theme: light and dark toggle (#themeToggle), persisted.
+- Accessibility: skip link, ARIA roles on tabs, tablist, modal and live regions, arrow/Home/End key handling on tabs, role="button" with tabindex on cards and kanban tasks, :focus-visible outlines, 44px touch targets, and reduced-motion support.
+- Responsive: auto-fit KPI grid, with breakpoints at 900px and 600px.
+
+
+4. DEMO CREDENTIALS (local mode, seeded on first load)
+------------------------------------------------------
+Role             User         Password
+Admin            admin        Admin@123
+Owner            owner        Owner@123
+Project manager  pmanager     PManager@123
+Developer        developer    Dev@123
+Tester           tester       Tester@123
+Client           client       Client@123
+
+IndexedDB data is per origin, so file:// and localhost have separate data. If the "client" account is missing, the origin was seeded before it was added. Create it in User Management, or clear site data.
+
+
+5. DESIGN SYSTEM (end of css/styles.css, CSS variables)
+-------------------------------------------------------
+Dark palette (default):
+  - Page background --primary #0F172A, cards and modals --secondary #1E293B, raised surface #273449, border #334155.
+  - Text #F8FAFC, muted text #94A3B8.
+  - Brand navy --accent #1F6FB2 for buttons and active tabs.
+  - Teal #14B8A6 for links, focus ring and success.
+  - Amber #F59E0B for notification badge and warnings.
+  - Purple #8B5CF6 (lighter #A78BFA on dark) for role badges and tags.
+Light theme: :root[data-theme="light"] uses the same hues with darker text variants for contrast. Page background #F8FAFC, text #0F172A, muted #475569, teal #0F766E, purple #6D28D9.
+Typography: Inter loaded from Google Fonts, with a system fallback. Body is 16px with line-height 1.6, and headings are bold at 1.25em.
+Spacing: --space-unit 8px, card padding 16px, section margin 32px.
+Hover: filter: brightness(1.08), or 1.04 in light mode.
+Layering: the appended blocks override the earlier base rules. Edit the last block rather than the top of the file, to avoid specificity fights.
+Logo: assets/logo.png is the full lockup on a white background. It sits on a white rounded plate in the header (64px tall) and on the login card. The favicon is the emblem only (loop and arrow). Asset URLs carry a ?v=3 cache-bust, so bump it when the images change. The source image is "New Logo 2.jpg", and brand assets are regenerated with "python scripts/generate-brand-assets.py".
+
+
+6. CONVENTIONS AND CONSTRAINTS FOR CHANGES
+------------------------------------------
+- Keep it dependency-free and static. Don't add a framework, bundler or Tailwind unless asked.
+- Don't run scripts/generate-config.js without SUPABASE_URL and SUPABASE_ANON_KEY, because it overwrites js/supabase-config.js.
+- Client-role restriction is UI-only in local mode. Real enforcement is the Supabase RLS in schema.sql and client-access.sql.
+- Use the existing .visually-hidden class for screen-reader-only text.
+- Validate JS with "node --check <file>". There is no automated test suite.
+- When checking UI, hard-reload, because assets are cached.
+
+
+7. KNOWN LIMITATIONS AND IDEAS
+------------------------------
+- No test suite, and no load-time benchmark has been run.
+- Contrast ratios for the latest palette haven't been audited with a tool.
+- The login hint text still mentions Supabase and the "Email" label even in local mode.
+- Header buttons overflow horizontally at narrow widths (Export, Import and Reset get cut off at ~390px). Wrapping or an overflow menu would fix it.
+- The light-theme screenshot hasn't been visually reviewed since the dark palette change.
+- Possible next steps: a dashboard charts view, server-side client invites through Supabase, a PWA manifest (192 and 512 icons already exist).
+
+
+8. HOW TO WRITE PROMPTS FOR THE AI
+----------------------------------
+Name the file, the component and the role or theme affected, for example: "In css/styles.css (last block), make .kanban-column scroll horizontally on <=600px in both themes." State whether to keep the Supabase and local modes working, and ask the AI to verify at localhost:8080 with a given login.

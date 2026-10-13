@@ -14,7 +14,8 @@ const FreelaUsers = (() => {
     }
 
     async function refresh() {
-        _users = await FreelaDB.getAll("users");
+        _users = await App.state.reloadUsers();
+        App.state.syncDropdowns();
         render();
     }
 
@@ -40,6 +41,7 @@ const FreelaUsers = (() => {
                 <td>${u.username}</td>
                 <td>${u.fullName}</td>
                 <td><span class="badge role-badge role-${u.role}">${FreelaAuth.roleLabel(u.role)}</span></td>
+                <td>${FreelaTeams.teamName(FreelaAuth.teamOf(u))}</td>
                 <td>${u.active === false ? '<span class="badge st-blocked">Disabled</span>' : '<span class="badge st-delivered">Active</span>'}</td>
                 <td class="user-row-actions">
                     ${actions}
@@ -52,26 +54,30 @@ const FreelaUsers = (() => {
             .filter(key => FreelaAuth.canCreateRole(key))
             .map(key => `<option value="${key}">${FreelaAuth.ROLES[key].label}</option>`).join("");
         const remoteMode = FreelaDB.remoteReady();
+        const canCreate = Boolean(perms.createUsers);
+        const canPickTeam = currentUser?.role === "admin" || currentUser?.role === "owner";
+        const teamField = canPickTeam ? `<div class="form-group"><label for="nuTeam">Team</label><select id="nuTeam">${FreelaTeams.options(FreelaAuth.teamOf(currentUser))}</select></div>` : "";
 
         dom.panel.innerHTML = `
             <div class="panel-header">
                 <span>User Management</span>
                 <span style="font-size:0.75rem; color:var(--text-muted);">${_users.length} accounts</span>
             </div>
-            <form id="newUserForm" class="form-row" style="grid-template-columns: 1fr 1fr 1fr 1fr auto; align-items:end;">
+            ${canCreate ? `<form id="newUserForm" class="form-row" style="grid-template-columns: repeat(${canPickTeam ? 5 : 4}, 1fr) auto; align-items:end;">
                 <div class="form-group"><label>${remoteMode ? "Email" : "Username"}</label><input type="${remoteMode ? "email" : "text"}" id="nuUsername" required maxlength="120"></div>
                 <div class="form-group"><label>Full Name</label><input type="text" id="nuFullName" required maxlength="80"></div>
                 <div class="form-group"><label>Role</label><select id="nuRole">${roleOptions}</select></div>
+                ${teamField}
                 <div class="form-group"><label>Password</label><input type="password" id="nuPassword" required minlength="6"></div>
                 <button type="submit" class="btn-primary" style="height:36px;">Add User</button>
-            </form>
+            </form>` : `<p class="section-hint">Only Admins, Business Owners and Project Managers can create users.</p>`}
             <table class="data-table">
-                <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Team</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
         `;
 
-        document.getElementById("newUserForm").addEventListener("submit", handleCreate);
+        document.getElementById("newUserForm")?.addEventListener("submit", handleCreate);
     }
 
     async function handleCreate(e) {
@@ -81,7 +87,8 @@ const FreelaUsers = (() => {
         const role = document.getElementById("nuRole").value;
         const password = document.getElementById("nuPassword").value;
 
-        const result = await FreelaAuth.createUser({ username, fullName, role, password });
+        const teamId = document.getElementById("nuTeam")?.value;
+        const result = await FreelaAuth.createUser({ username, fullName, role, password, teamId });
         if (!result.ok) {
             App.ui.showNotify(result.msg, "error");
             return;
@@ -107,12 +114,13 @@ const FreelaUsers = (() => {
             <div class="form-group"><label>Username</label><input type="text" value="${user.username}" disabled></div>
             ${isAdmin ? `<div class="form-group"><label>Full Name</label><input type="text" id="euFullName" value="${user.fullName}"></div>
             <div class="form-group"><label>Role</label><select id="euRole">${roleOptions}</select></div>
+            <div class="form-group"><label>Team</label><select id="euTeam">${FreelaTeams.options(FreelaAuth.teamOf(user))}</select></div>
             <div class="form-group"><label>Status</label>
                 <select id="euActive">
                     <option value="true" ${user.active !== false ? "selected" : ""}>Active</option>
                     <option value="false" ${user.active === false ? "selected" : ""}>Disabled</option>
                 </select>
-            </div>` : `<input type="hidden" id="euFullName" value="${user.fullName}"><input type="hidden" id="euRole" value="${user.role}"><input type="hidden" id="euActive" value="true">`}
+            </div>` : `<input type="hidden" id="euFullName" value="${user.fullName}"><input type="hidden" id="euRole" value="${user.role}"><input type="hidden" id="euActive" value="true"><input type="hidden" id="euTeam" value="${FreelaAuth.teamOf(user)}">`}
             <div class="form-group"><label>${isAdmin ? "New Password (optional)" : "New Password"}</label><input type="password" id="euPassword" minlength="6" ${isAdmin ? 'placeholder="Leave blank to keep current password"' : "required"}></div>
         `;
         App.ui.openModal("Edit User", html, async () => {
@@ -121,7 +129,7 @@ const FreelaUsers = (() => {
             const password = document.getElementById("euPassword").value;
             const active = document.getElementById("euActive").value === "true";
 
-            const result = await FreelaAuth.updateUser(id, { fullName, role, password: password || undefined, active });
+            const result = await FreelaAuth.updateUser(id, { fullName, role, password: password || undefined, active, teamId: document.getElementById("euTeam").value });
             if (!result.ok) {
                 App.ui.showNotify(result.msg, "error");
                 return;
